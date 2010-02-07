@@ -1,0 +1,17 @@
+global:
+    - add support for planar arrays
+    - add benchmarks
+    - compare speed with CUFFT + transpose
+    - check all TODO's in code
+    - check work for big arrays and batch sizes (and for array size == 1 maybe, just in case)
+    - check work for both in-place and out-of-place transform
+    - switch to templating engine
+    - dynamically calculate proper block and grid size (so that their size is supported by GPU
+      along with number of registers/shared mem/local mem). Do not forget to replace
+      blockIdx.x by gridDim.x * blockIdx.y + blockIdx.x
+
+optimizations (only after benchmarks!):
+    - replace mad24() with vector function
+    - replace cos() and sin() by faster analogues (if any) - see native_cos() in OpenCL
+    - replace indexes with pointer arithmetic if someone answers in thread
+
