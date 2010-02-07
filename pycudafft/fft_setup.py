@@ -34,8 +34,20 @@ def getBlockConfigAndKernelString(plan):
 			plan.temp_buffer_needed = True
 
 def createKernelList(plan):
+	shared_mem_limit = device.get_attribute(device_attribute.MAX_SHARED_MEMORY_PER_BLOCK)
+	reg_limit = device.get_attribute(device_attribute.MAX_REGISTERS_PER_BLOCK)
+
 	for kInfo in plan.kernel_info:
 		kInfo.function_ref = plan.module.get_function(kInfo.kernel_name)
+		if kInfo.function_ref.shared_size_bytes > shared_mem_limit:
+			print "Not enough shared memory: requires " + str(kInfo.function_ref.shared_size_bytes) + \
+				", limit " + str(shared_mem_limit)
+			raise Exception("Insufficient shared memory")
+		if kInfo.function_ref.num_regs * kInfo.num_workitems_per_workgroup > reg_limit:
+			print "Not enough registers: requires " + str(kInfo.function_ref.num_regs) + \
+				" * " + str(kInfo.num_workitems_per_workgroup) + \
+				", limit " + str(reg_limit)
+			raise Exception("Insufficient registers")
 
 def getMaxKernelWorkGroupSize(plan):
 	# TODO: investigate the original function and write proper port
@@ -57,29 +69,30 @@ class FFTPlan:
 
 		self.n = _Dim(x, y, z)
 		self.dim = dim
-		self.kernel_info = []
 		self.num_kernels = 0
 		self.program = 0
 		self.temp_buffer_needed = False
 		self.last_batch_size = 0
 		self.tempmemobj = 0
-		self.tempmemobj_real = 0
-		self.tempmemobj_imag = 0
 		self.max_localmem_fft_size = 2048
-		self.max_work_item_per_workgroup = device.get_attribute(device_attribute.MAX_BLOCK_DIM_X)
 		self.max_radix = 16
 		self.min_mem_coalesce_width = 16
 		self.num_local_mem_banks = device.get_attribute(device_attribute.WARP_SIZE) / 2
+		self.max_work_item_per_workgroup = device.get_attribute(device_attribute.MAX_BLOCK_DIM_X)
 
-		self.kernel_string = ""
-		getBlockConfigAndKernelString(self)
-		#print self.kernel_string
-
-		self.module = SourceModule(self.kernel_string, no_extern_c=True, options=['--compiler-options', '-w'])
-		createKernelList(self)
-
-		# we created program and kernels based on "some max work group size (default 256)" ... this work group size
-		# may be larger than what kernel may execute with ... if thats the case we need to regenerate the kernel source
-		# setting this as limit i.e max group size and rebuild.
-
-		# TODO: rebuild program if there is not enough registers for current block size
+		# TODO: make this 'recompile-if-necessary' code more good looking
+		done = False
+		while not done:
+			self.kernel_string = ""
+			self.kernel_info = []
+			getBlockConfigAndKernelString(self)
+			self.module = SourceModule(self.kernel_string, no_extern_c=True, options=['--compiler-options', '-w'])
+			try:
+				createKernelList(self)
+			except:
+				if self.max_work_item_per_workgroup > 1:
+					self.max_work_item_per_workgroup /= 2
+					print "Recompiling with block_size=" + str(self.max_work_item_per_workgroup)
+					continue
+				raise Exception("Cannot meet number of registers/shared memory requirements")
+			done = True
