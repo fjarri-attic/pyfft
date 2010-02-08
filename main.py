@@ -17,7 +17,8 @@ def rand_complex(*dims):
 	#return (numpy.ones(dims) + 1j * numpy.ones(dims)).astype(numpy.complex64)
 
 def difference(arr1, arr2):
-	return math.sqrt(numpy.cov(arr1.ravel() - arr2.ravel(), bias=1)) / arr1.size
+	diff = numpy.abs(arr1 - arr2) / numpy.abs(arr1)
+	return diff.max()
 
 def numpy_fft_base(data, dim, len, batch, func):
 	res = []
