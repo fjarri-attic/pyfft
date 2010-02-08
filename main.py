@@ -99,16 +99,16 @@ def runTest(dim, x, y, z, batch):
 	#	print "Failed: " + str(e)
 
 def runTests():
-	for batch in [10, 100, 1000, 5000]:
+	for batch in [16, 128, 1024, 4096]:
 
 		# 1D
 		for x in [8, 10]:
 			runTest(clFFT_1D, 2 ** x, 1, 1, batch)
 
 		# 2D
-		#for x in [1, 3, 4, 7, 8, 10]:
-		#	for y in [1, 3, 4, 7, 8, 10]:
-		#		runTest(clFFT_2D, 2 ** x, 2 ** y, 1, batch)
+		for x in [4, 7, 8, 10]:
+			for y in [4, 7, 8, 10]:
+				runTest(clFFT_2D, 2 ** x, 2 ** y, 1, batch)
 
 		# 3D
 		#for x in [1, 3, 7, 10]:
