@@ -77,7 +77,10 @@ class FFTPlan:
 		self.max_localmem_fft_size = 2048
 		self.max_radix = 16
 		self.min_mem_coalesce_width = 16
+
+		# TODO: get this parameter properly from device instead of calculating it
 		self.num_local_mem_banks = device.get_attribute(device_attribute.WARP_SIZE) / 2
+
 		self.max_work_item_per_workgroup = device.get_attribute(device_attribute.MAX_BLOCK_DIM_X)
 
 		# TODO: make this 'recompile-if-necessary' code more good looking
