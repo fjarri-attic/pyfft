@@ -67,6 +67,7 @@ def clFFT_ExecuteInterleaved(plan, batchSize, dir, data_in, data_out):
 				", block " + str(lWorkItems) + ", registers " + str(func.num_regs) + \
 				", local mem " + str(func.local_size_bytes) + ", shared mem " + str(func.shared_size_bytes)
 			func.prepare("PPii", block=(lWorkItems, 1, 1), shared=4 * kInfo.lmem_size)
+			func.prepare("PPii", block=(lWorkItems, 1, 1)) #, shared=4 * kInfo.lmem_size)
 			func.prepared_call((gWorkItems / lWorkItems, 1), memObj[currRead], memObj[currWrite], dir, s)
 
 			currRead  = 1 if (currWrite == 1) else 2
@@ -87,6 +88,7 @@ def clFFT_ExecuteInterleaved(plan, batchSize, dir, data_in, data_out):
 				", block " + str(lWorkItems) + ", registers " + str(func.num_regs) + \
 				", local mem " + str(func.local_size_bytes) + ", shared mem " + str(func.shared_size_bytes)
 			func.prepare("PPii", block=(lWorkItems, 1, 1), shared=4 * kInfo.lmem_size)
+			func.prepare("PPii", block=(lWorkItems, 1, 1)) #, shared=4 * kInfo.lmem_size)
 			func.prepared_call((gWorkItems / lWorkItems, 1), memObj[currRead], memObj[currWrite], dir, s)
 
 			currRead  = 1
