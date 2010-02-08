@@ -870,11 +870,17 @@ def FFT1D(plan, dir):
 					return createLocalMemfftKernelString(plan)
 				else:
 					return createGlobalFFTKernelString(plan, plan.n.x, 1, cl_fft_kernel_x, 1)
+		else:
+			return ""
 	elif dir == cl_fft_kernel_y:
 		if plan.n.y > 1:
 			return createGlobalFFTKernelString(plan, plan.n.y, plan.n.x, cl_fft_kernel_y, 1)
+		else:
+			return ""
 	elif dir == cl_fft_kernel_z:
 		if plan.n.z > 1:
 			return createGlobalFFTKernelString(plan, plan.n.z, plan.n.x*plan.n.y, cl_fft_kernel_z, 1)
+		else:
+			return ""
 	else:
 		raise Exception("Wrong direction")
