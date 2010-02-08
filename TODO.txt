@@ -10,6 +10,7 @@ global:
       along with number of registers/shared mem/local mem). Do not forget to replace
       blockIdx.x by gridDim.x * blockIdx.y + blockIdx.x
     - when function uses too much registers, recreate with new block size only it, not the whole code
+    - find a way to disable compilation warnings; probably can be done after moving to templating engine
 
 optimizations (only after benchmarks!):
     - replace mad24() with vector function

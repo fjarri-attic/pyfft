@@ -89,7 +89,7 @@ class FFTPlan:
 			self.kernel_string = ""
 			self.kernel_info = []
 			getBlockConfigAndKernelString(self)
-			self.module = SourceModule(self.kernel_string, no_extern_c=True, options=['--compiler-options', '-w'])
+			self.module = SourceModule(self.kernel_string, no_extern_c=True)
 			try:
 				createKernelList(self)
 			except:
