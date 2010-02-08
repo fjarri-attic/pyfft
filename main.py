@@ -32,6 +32,10 @@ def numpy_fft_base(data, dim, len, batch, func):
 
 def test(dim, x, y, z, batch):
 
+	if x * y * z * batch * 8 > 2 ** 26:
+		print "Array size is " + str(x * y * z * batch * 8 / 1024 / 1024) + " Mb - test skipped"
+		return
+
 	if dim == clFFT_1D:
 		data = rand_complex(x * batch)
 		batch_len = x
