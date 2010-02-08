@@ -45,51 +45,57 @@ def test(dim, x, y, z, batch):
 	if x * y * z * batch * 8 > 2 ** 26:
 		print "Array size is " + str(x * y * z * batch * 8 / 1024 / 1024) + " Mb - test skipped"
 		return
+	epsilon = 1e-2
 
 	if dim == clFFT_1D:
 		data = rand_complex(x * batch)
-		cufft_plan = get_1dplan((x,), batch)
 	elif dim == clFFT_2D:
 		data = rand_complex(x, y * batch)
 	elif dim == clFFT_3D:
 		data = rand_complex(x, y, z * batch)
 
 	# Prepare arrays
-	res = numpy.empty(data.shape, dtype=numpy.complex64)
-	cufft_res = numpy.empty(data.shape, dtype=numpy.complex64)
-	pyfft_res = numpy.empty(data.shape, dtype=numpy.complex64)
-
 	a_gpu = gpuarray.to_gpu(data)
 	b_gpu = gpuarray.GPUArray(data.shape, dtype=data.dtype)
 
-	# Prepare pycudaftt plan
+	# Prepare plans
 	plan = FFTPlan(x, y, z, dim)
+	cufft_plan = CUFFTPlan(x, y, z, batch)
 
 	# CUFFT forward transform
-	cufft_time = timefunc(gpu_fft, a_gpu, b_gpu, plan=cufft_plan)
+	cufft_time = timefunc(cufft_plan.execute, a_gpu, b_gpu, -1)
 	print "CUFFT Forward total call time: " + str(cufft_time) + " ms"
-	cufft_res = b_gpu.get()
+	cufft_fw = b_gpu.get()
+
+	# CUFFT inverse transgorm
+	cufft_time = timefunc(cufft_plan.execute, b_gpu, a_gpu, 1)
+	cufft_res = a_gpu.get() / (x * y * z)
 
 	# pycudafft forward transform
 	a_gpu.set(data)
 	pyfft_time_fw = timefunc(clFFT_ExecuteInterleaved, plan, batch, clFFT_Forward, a_gpu.gpudata, b_gpu.gpudata)
 	print "PyCuda FFT Forward total call time: " + str(pyfft_time_fw) + " ms"
-	pyfft_res = b_gpu.get()
+	pyfft_fw = b_gpu.get()
+
+	# pycudafft inverse transform
+	clFFT_ExecuteInterleaved(plan, batch, clFFT_Inverse, b_gpu.gpudata, a_gpu.gpudata)
+	pyfft_res = a_gpu.get() / (x * y * z)
 
 	# compare CUFFT and pycudafft results
-	diff_err = difference(cufft_res, pyfft_res)
-	if diff_err > 1e-6:
-		raise Exception("Difference between pycudafft and cufft: " + str(diff_err))
+	cufft_err = difference(cufft_res, data)
+	print "cufft forward-inverse error: " + str(cufft_err)
+	if cufft_err > epsilon:
+		raise Exception("cufft forward-inverse error: " + str(cufft_err))
 
-	# pycudafft inerse transform
-	clFFT_ExecuteInterleaved(plan, batch, clFFT_Inverse, b_gpu.gpudata, a_gpu.gpudata)
-	res = a_gpu.get()
-	res = res / (x * y * z)
-
-	# compare forward-inverse result with initial data
-	pycudafft_err = difference(res, data)
-	if pycudafft_err > 1e-6:
+	pycudafft_err = difference(pyfft_res, data)
+	print "pycudafft forward-inverse error: " + str(pycudafft_err)
+	if pycudafft_err > epsilon:
 		raise Exception("pycudafft forward-inverse error: " + str(pycudafft_err))
+
+	diff_err = difference(cufft_fw, pyfft_fw)
+	print "pycudafft - cufft error: " + str(diff_err)
+	if diff_err > epsilon:
+		raise Exception("Difference between pycudafft and cufft: " + str(diff_err))
 
 def runTest(dim, x, y, z, batch):
 	#try:
