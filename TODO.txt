@@ -15,3 +15,7 @@ optimizations (only after benchmarks!):
     - replace mad24() with vector function
     - replace cos() and sin() by faster analogues (if any) - see native_cos() in OpenCL
     - replace indexes with pointer arithmetic if someone answers in thread
+    - for some reason compiler adds a[] arrays to shared memory (making kInfo.lmem_size incorrect)
+      check if the generation code can be changed to make compiler put a[] in registers
+    - some kernels have non-zero local memory size - probably they have to be recompiled in this case
+      (or maybe it is just PyCuda showing incorrect size)
