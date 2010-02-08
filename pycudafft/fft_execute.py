@@ -63,10 +63,10 @@ def clFFT_ExecuteInterleaved(plan, batchSize, dir, data_in, data_out):
 			func = kInfo.function_ref
 			# TODO: remove hardcoded '4' (should be value type size)
 			# TODO: prepare functions when creating the plan
-			print "Launching " + kInfo.kernel_name + ": grid " + str(gWorkItems / lWorkItems) + \
-				", block " + str(lWorkItems) + ", registers " + str(func.num_regs) + \
-				", local mem " + str(func.local_size_bytes) + ", shared mem " + str(func.shared_size_bytes)
-			func.prepare("PPii", block=(lWorkItems, 1, 1), shared=4 * kInfo.lmem_size)
+			#print "Launching " + kInfo.kernel_name + ": grid " + str(gWorkItems / lWorkItems) + \
+			#	", block " + str(lWorkItems) + ", registers " + str(func.num_regs) + \
+			#	", local mem " + str(func.local_size_bytes) + ", shared mem " + str(func.shared_size_bytes) + \
+			#	" (kInfo: " + str(kInfo.lmem_size * 4) + ")"
 			func.prepare("PPii", block=(lWorkItems, 1, 1)) #, shared=4 * kInfo.lmem_size)
 			func.prepared_call((gWorkItems / lWorkItems, 1), memObj[currRead], memObj[currWrite], dir, s)
 
@@ -84,10 +84,10 @@ def clFFT_ExecuteInterleaved(plan, batchSize, dir, data_in, data_out):
 			func = kInfo.function_ref
 			# TODO: remove hardcoded '4' (should be value type size)
 			# TODO: prepare functions when creating the plan
-			print "Launching " + kInfo.kernel_name + ": grid " + str(gWorkItems / lWorkItems) + \
-				", block " + str(lWorkItems) + ", registers " + str(func.num_regs) + \
-				", local mem " + str(func.local_size_bytes) + ", shared mem " + str(func.shared_size_bytes)
-			func.prepare("PPii", block=(lWorkItems, 1, 1), shared=4 * kInfo.lmem_size)
+			#print "Launching " + kInfo.kernel_name + ": grid " + str(gWorkItems / lWorkItems) + \
+			#	", block " + str(lWorkItems) + ", registers " + str(func.num_regs) + \
+			#	", local mem " + str(func.local_size_bytes) + ", shared mem " + str(func.shared_size_bytes) + \
+			#	" (kInfo: " + str(kInfo.lmem_size * 4) + ")"
 			func.prepare("PPii", block=(lWorkItems, 1, 1)) #, shared=4 * kInfo.lmem_size)
 			func.prepared_call((gWorkItems / lWorkItems, 1), memObj[currRead], memObj[currWrite], dir, s)
 
