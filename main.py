@@ -49,8 +49,8 @@ def test(dim, x, y, z, batch):
 	elif dim == clFFT_3D:
 		data = rand_complex(x, y, z * batch)
 		batch_len = z
-		fft = numpy.fft.fft3
-		ifft = numpy.fft.ifft3
+		#fft = numpy.fft.fft3
+		#ifft = numpy.fft.ifft3
 
 	# TODO: Will not work under 32-bit python with 2D and 3D
 	#numpy_transformed = numpy_fft_base(data, dim, batch_len, batch, fft)
@@ -104,9 +104,9 @@ def runTests():
 				runTest(clFFT_2D, 2 ** x, 2 ** y, 1, batch)
 
 		# 3D
-		#for x in range(13):
-		#	for y in range(13):
-		#		for z in range(13):
-		#			runTest(clFFT_3D, x ** 2, y ** 2, z ** 2, batch)
+		for x in [1, 3, 7, 10]:
+			for y in [1, 3, 7, 10]:
+				for z in [1, 3, 7, 10]:
+					runTest(clFFT_3D, 2 ** x, 2 ** y, 2 ** z, batch)
 
 runTests()
