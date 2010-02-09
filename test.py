@@ -107,10 +107,19 @@ def testPerformance(x, y, z):
 	stop.synchronize()
 	t = stop.time_since(start) / 1000.0 / iterations # in seconds
 
+	cufft_plan = CUFFTPlan(x, y, z, batch)
+	start.record()
+	for i in xrange(iterations):
+		cufft_plan.execute(a_gpu, b_gpu, CUFFT_FORWARD)
+	stop.record()
+	stop.synchronize()
+	t_cufft = stop.time_since(start) / 1000.0 / iterations # in seconds
+
 	gflop = 5.0e-9 * (log2(x) + log2(y) + log2(z)) * x * y * z * batch
 
 	print "* pycudafft performance: " + str([x, y, z]) + ", batch " + str(batch) + ": " + \
 		str(t * 1000) + " ms, " + str(gflop / t) + " GFLOPS"
+	print "cufft: " + str(t_cufft * 1000) + " ms, " + str(gflop / t_cufft) + " GFLOPS"
 
 def testErrors(x, y, z, batch):
 
