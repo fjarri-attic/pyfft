@@ -38,7 +38,7 @@ def difference(arr1, arr2, batch):
 	for i in range(batch):
 		sum_diff = numpy.sum(diff_arr[i*problem_len:(i+1)*problem_len])
 		sum_mod = numpy.sum(mod_arr[i*problem_len:(i+1)*problem_len+1])
-		diff = math.sqrt(sum_diff / sum_mod)
+		diff = sum_diff / sum_mod
 		avg += diff
 		max_diff = max_diff if diff < max_diff else diff
 		min_diff = min_diff if diff > min_diff else diff
@@ -124,9 +124,8 @@ def testPerformance(x, y, z):
 def testErrors(x, y, z, batch):
 
 	buf_size_bytes = MAX_BUFFER_SIZE * 1024 * 1024
-	value_size = 8
-	large_epsilon = 1e-2 # for comparisons where errors are expected
-	small_epsilon = 1e-7 # for comparisons where there shouldn't be any errors at all
+	value_size = 8 # size of complex value, hardcoded (float, float)
+	epsilon = 1e-6 # TODO: it depends on value type; 1e-6 is for float
 
 	# Skip test if resulting data size is too big
 	if x * y * z * batch * value_size > buf_size_bytes:
@@ -177,27 +176,19 @@ def testErrors(x, y, z, batch):
 	# check cases where there shouldn't be any errors at all
 	pycudafft_err_inout_fw = difference(pyfft_fw_inplace, pyfft_fw_outplace, batch)
 	pycudafft_err_inout_res = difference(pyfft_res_inplace, pyfft_res_outplace, batch)
-	assert pycudafft_err_inout_fw < small_epsilon, "inplace-outplace intermediate error: " + str(pycudafft_err_inout_fw)
-	assert pycudafft_err_inout_res < small_epsilon, "inplace-outplace final error: " + str(pycudafft_err_inout_res)
+	diff_err = difference(cufft_fw, pyfft_fw_inplace, batch)
 
 	# compare CUFFT and pycudafft results
-	if cufft_err > large_epsilon:
-		raise Exception("cufft forward-inverse error: " + str(cufft_err))
+	assert pycudafft_err_inout_fw < epsilon, "inplace-outplace intermediate error: " + str(pycudafft_err_inout_fw)
+	assert pycudafft_err_inout_res < epsilon, "inplace-outplace final error: " + str(pycudafft_err_inout_res)
 
-	if pycudafft_err_inplace > large_epsilon:
-		raise Exception("pycudafft forward-inverse inplace error: " + str(pycudafft_err_inplace))
+	assert cufft_err < epsilon, "cufft forward-inverse error: " + str(cufft_err)
+	assert pycudafft_err_inplace < epsilon, "pycudafft forward-inverse inplace error: " + str(pycudafft_err_inplace)
+	assert pycudafft_err_outplace < epsilon, "pycudafft forward-inverse outplace error: " + str(pycudafft_err_outplace)
 
-	if pycudafft_err_outplace > large_epsilon:
-		raise Exception("pycudafft forward-inverse outplace error: " + str(pycudafft_err_outplace))
+	assert diff_err < epsilon, "Difference between pycudafft and cufft: " + str(diff_err)
 
-	diff_err = difference(cufft_fw, pyfft_fw_inplace, batch)
-	if diff_err > large_epsilon:
-		raise Exception("Difference between pycudafft and cufft: " + str(diff_err))
-
-	print "* error tests for " + str([x, y, z]) + ", batch " + str(batch) + \
-		": pycudafft=" + str(pycudafft_err_inplace) + \
-		", cufft=" + str(cufft_err) + \
-		", reference_check=" + str(diff_err)
+	print "* error tests for " + str([x, y, z]) + ", batch " + str(batch) + ": passed"
 
 def runErrorTests():
 	for batch in [1, 16, 128, 1024, 4096]:
@@ -228,5 +219,5 @@ def runPerformanceTests():
 	testPerformance(32, 32, 128)
 	testPerformance(128, 128, 128)
 
-#runErrorTests()
-runPerformanceTests()
+runErrorTests()
+#runPerformanceTests()
