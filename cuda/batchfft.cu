@@ -1,19 +1,3 @@
-/**
- * @file
- * Implementation of batched 2D FFTs with CUDA
- *
- * @author Jim Hardwick
- * @date 12 Jan 2008
- *
- * @note
- * This code was posted to nVidia's public CUDA forum as thanks to the CUDA
- * forum membership for their assistance. No copyright was asserted and no
- * license terms were imposed in the post. The post can be found at
- * http://forums.nvidia.com/index.php?showtopic=34241
- *
- * 3D batch support (and some design changes) by Bogdan Opanchuk
- */
-
 #include <cutil_inline.h>
 #include <assert.h>
 

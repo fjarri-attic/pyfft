@@ -1,19 +1,3 @@
-/**
- * @file
- * Declarations for batched 2D FFTs with CUDA
- *
- * @author Jim Hardwick
- * @date 6 Sep 2007
- *
- * @note
- * This code was posted to nVidia's public CUDA forum as thanks to the CUDA
- * forum membership for their assistance. No copyright was asserted and no
- * license terms were imposed in the post. The post can be found at
- * http://forums.nvidia.com/index.php?showtopic=34241
- *
- * 3D batch support (and some design changes) by Bogdan Opanchuk
- */
-
 #ifndef _BATCHFFT_H_
 #define _BATCHFFT_H_
 
