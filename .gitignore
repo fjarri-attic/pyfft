@@ -1,1 +1,4 @@
 *.pyc
+cuda/obj/*
+cuda/release/*
+*.o
