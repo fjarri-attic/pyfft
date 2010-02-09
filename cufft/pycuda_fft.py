@@ -148,10 +148,10 @@ class CUFFTPlan:
 		self.temp = gpuarray.GPUArray((x * y * z * batch,), dtype=numpy.complex64)
 		self.xplan = get_1dplan((self.x,), batch=self.y * self.z * self.batch)
 
-		if self.dim == 2:
+		if self.dim > 1:
 			self.yplan = get_1dplan((self.y,), batch=self.x * self.z * self.batch)
 
-		if self.dim == 3:
+		if self.dim > 2:
 			self.zplan = get_1dplan((self.z,), batch=self.x * self.y * self.batch)
 
 		self.tr = transpose.Transpose(complex32)
