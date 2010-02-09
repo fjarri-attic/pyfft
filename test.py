@@ -105,7 +105,7 @@ def testPerformance(x, y, z):
 		clFFT_ExecuteInterleaved(plan, batch, clFFT_Forward, a_gpu.gpudata, b_gpu.gpudata)
 	stop.record()
 	stop.synchronize()
-	t = stop.time_since(start) / 1000.0 # in seconds
+	t = stop.time_since(start) / 1000.0 / iterations # in seconds
 
 	gflop = 5.0e-9 * (log2(x) + log2(y) + log2(z)) * x * y * z * batch
 
