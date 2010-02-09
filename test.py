@@ -11,6 +11,14 @@ import math
 
 MAX_BUFFER_SIZE = 16 # in megabytes
 
+def log2(n):
+	pos = 0
+	for pow in [16, 8, 4, 2, 1]:
+		if n >= 2 ** pow:
+			n /= (2 ** pow)
+			pos += pow
+	return pos
+
 def rand_complex(*dims):
 	real = numpy.random.randn(*dims)
 	imag = numpy.random.randn(*dims)
