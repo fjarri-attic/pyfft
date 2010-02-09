@@ -136,13 +136,6 @@ def testErrors(x, y, z, batch):
 		", cufft=" + str(cufft_err) + \
 		", reference_check=" + str(diff_err)
 
-def runTest(dim, x, y, z, batch=None):
-	#try:
-
-		test(dim, x, y, z, batch)
-	#except Exception, e:
-	#	print "Failed: " + str(e)
-
 def runErrorTests():
 	for batch in [1, 16, 128, 1024, 4096]:
 
