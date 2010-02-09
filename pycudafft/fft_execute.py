@@ -53,7 +53,7 @@ def clFFT_ExecuteInterleaved(plan, batchSize, dir, data_in, data_out):
 			currWrite = 1 if numKernelsOdd else 2
 
 		for kInfo in kernelInfo:
-			if isInPlace and numKernelsOdd and not inPlaceDone and kernelInfo.in_place_possible:
+			if isInPlace and numKernelsOdd and not inPlaceDone and kInfo.in_place_possible:
 				currWrite = currRead
 				inPlaceDone = True
 
