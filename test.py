@@ -194,7 +194,7 @@ def runErrorTests():
 	for batch in [1, 16, 128, 1024, 4096]:
 
 		# 1D
-		for x in [8, 10, 13]:
+		for x in [3, 8, 9, 10, 13]:
 			testErrors(2 ** x, 1, 1, batch)
 
 		# 2D
