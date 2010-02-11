@@ -186,27 +186,32 @@ def testErrors(x, y, z, batch):
 	assert pycudafft_err_inplace < epsilon, "pycudafft forward-inverse inplace error: " + str(pycudafft_err_inplace)
 	assert pycudafft_err_outplace < epsilon, "pycudafft forward-inverse outplace error: " + str(pycudafft_err_outplace)
 
-	assert diff_err < epsilon, "Difference between pycudafft and cufft: " + str(diff_err)
-
-	print "* error tests for " + str([x, y, z]) + ", batch " + str(batch) + ": passed"
+	assert diff_err < epsilon, "difference between pycudafft and cufft: " + str(diff_err)
 
 def runErrorTests():
+
+	def wrapper(x, y, z, batch):
+		try:
+			testErrors(x, y, z, batch)
+		except Exception, e:
+			print "failed: " + str([x, y, z]) + ", batch " + str(batch) + ": " + str(e)
+
 	for batch in [1, 16, 128, 1024, 4096]:
 
 		# 1D
 		for x in [3, 8, 9, 10, 13]:
-			testErrors(2 ** x, 1, 1, batch)
+			wrapper(2 ** x, 1, 1, batch)
 
 		# 2D
 		for x in [4, 7, 8, 10]:
 			for y in [4, 7, 8, 10]:
-				testErrors(2 ** x, 2 ** y, 1, batch)
+				wrapper(2 ** x, 2 ** y, 1, batch)
 
 		# 3D
 		for x in [4, 7, 10]:
 			for y in [4, 7, 10]:
 				for z in [4, 7, 10]:
-					testErrors(2 ** x, 2 ** y, 2 ** z, batch)
+					wrapper(2 ** x, 2 ** y, 2 ** z, batch)
 
 def runPerformanceTests():
 	testPerformance(16, 1, 1)

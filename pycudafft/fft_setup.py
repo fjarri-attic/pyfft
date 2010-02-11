@@ -95,7 +95,6 @@ class FFTPlan:
 			except:
 				if self.max_work_item_per_workgroup > 1:
 					self.max_work_item_per_workgroup /= 2
-					print "Recompiling with block_size=" + str(self.max_work_item_per_workgroup)
 					continue
 				raise Exception("Cannot meet number of registers/shared memory requirements")
 			done = True
