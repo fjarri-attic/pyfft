@@ -35,6 +35,7 @@ def clFFT_ExecuteInterleaved(plan, batchSize, dir, data_in, data_out):
 		plan.tempmemobj = cuda.mem_alloc(plan.n.x * plan.n.y * plan.n.z * batchSize * 2 * 4)
 
 	memObj = (data_in, data_out, plan.tempmemobj)
+
 	kernelInfo = plan.kernel_info
 	numKernels = len(plan.kernel_info)
 
@@ -61,13 +62,8 @@ def clFFT_ExecuteInterleaved(plan, batchSize, dir, data_in, data_out):
 			s, gWorkItems, lWorkItems = getKernelWorkDimensions(plan, kInfo, s)
 
 			func = kInfo.function_ref
-			# TODO: remove hardcoded '4' (should be value type size)
 			# TODO: prepare functions when creating the plan
-			#print "Launching " + kInfo.kernel_name + ": grid " + str(gWorkItems / lWorkItems) + \
-			#	", block " + str(lWorkItems) + ", registers " + str(func.num_regs) + \
-			#	", local mem " + str(func.local_size_bytes) + ", shared mem " + str(func.shared_size_bytes) + \
-			#	" (kInfo: " + str(kInfo.lmem_size * 4) + ")"
-			func.prepare("PPii", block=(lWorkItems, 1, 1)) #, shared=4 * kInfo.lmem_size)
+			func.prepare("PPii", block=(lWorkItems, 1, 1))
 			func.prepared_call((gWorkItems / lWorkItems, 1), memObj[currRead], memObj[currWrite], dir, s)
 
 			currRead  = 1 if (currWrite == 1) else 2
@@ -82,14 +78,74 @@ def clFFT_ExecuteInterleaved(plan, batchSize, dir, data_in, data_out):
 			s, gWorkItems, lWorkItems = getKernelWorkDimensions(plan, kInfo, s)
 
 			func = kInfo.function_ref
-			# TODO: remove hardcoded '4' (should be value type size)
 			# TODO: prepare functions when creating the plan
-			#print "Launching " + kInfo.kernel_name + ": grid " + str(gWorkItems / lWorkItems) + \
-			#	", block " + str(lWorkItems) + ", registers " + str(func.num_regs) + \
-			#	", local mem " + str(func.local_size_bytes) + ", shared mem " + str(func.shared_size_bytes) + \
-			#	" (kInfo: " + str(kInfo.lmem_size * 4) + ")"
-			func.prepare("PPii", block=(lWorkItems, 1, 1)) #, shared=4 * kInfo.lmem_size)
+			func.prepare("PPii", block=(lWorkItems, 1, 1))
 			func.prepared_call((gWorkItems / lWorkItems, 1), memObj[currRead], memObj[currWrite], dir, s)
+
+			currRead  = 1
+			currWrite = 1
+
+def clFFT_ExecutePlanar(plan, batchSize, dir, data_in_re, data_in_im, data_out_re, data_out_im):
+
+	inPlaceDone = 0
+	isInPlace = (data_in_re == data_out_re and data_in_im == data_out_im)
+
+	if plan.temp_buffer_needed and plan.last_batch_size != batchSize:
+		plan.last_batch_size = batchSize
+		# TODO: remove hardcoded '4' when adding support for different types
+		plan.tempmemobj_re = cuda.mem_alloc(plan.n.x * plan.n.y * plan.n.z * batchSize * 4)
+		plan.tempmemobj_im = cuda.mem_alloc(plan.n.x * plan.n.y * plan.n.z * batchSize * 4)
+
+	memObj_re = (data_in_re, data_out_re, plan.tempmemobj_re)
+	memObj_im = (data_in_im, data_out_im, plan.tempmemobj_im)
+
+	kernelInfo = plan.kernel_info
+	numKernels = len(plan.kernel_info)
+
+	numKernelsOdd = (numKernels % 2 == 1)
+	currRead  = 0
+	currWrite = 1
+
+	# at least one external dram shuffle (transpose) required
+	inPlaceDone = False
+	if plan.temp_buffer_needed:
+		# in-place transform
+		if isInPlace:
+			currRead  = 1
+			currWrite = 2
+		else:
+			currWrite = 1 if numKernelsOdd else 2
+
+		for kInfo in kernelInfo:
+			if isInPlace and numKernelsOdd and not inPlaceDone and kInfo.in_place_possible:
+				currWrite = currRead
+				inPlaceDone = True
+
+			s = batchSize
+			s, gWorkItems, lWorkItems = getKernelWorkDimensions(plan, kInfo, s)
+
+			func = kInfo.function_ref
+			# TODO: prepare functions when creating the plan
+			func.prepare("PPPPii", block=(lWorkItems, 1, 1))
+			func.prepared_call((gWorkItems / lWorkItems, 1), memObj_re[currRead],
+				memObj_im[currRead], memObj_re[currWrite], memObj_im[currWrite], dir, s)
+
+			currRead  = 1 if (currWrite == 1) else 2
+			currWrite = 2 if (currWrite == 1) else 1
+
+	# no dram shuffle (transpose required) transform
+	# all kernels can execute in-place.
+	else:
+		for kInfo in kernelInfo:
+
+			s = batchSize
+			s, gWorkItems, lWorkItems = getKernelWorkDimensions(plan, kInfo, s)
+
+			func = kInfo.function_ref
+			# TODO: prepare functions when creating the plan
+			func.prepare("PPPPii", block=(lWorkItems, 1, 1))
+			func.prepared_call((gWorkItems / lWorkItems, 1), memObj_re[currRead],
+				memObj_im[currRead], memObj_re[currWrite], memObj_im[currWrite], dir, s)
 
 			currRead  = 1
 			currWrite = 1

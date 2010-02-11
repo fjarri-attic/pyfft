@@ -19,11 +19,14 @@ def log2(n):
 			pos += pow
 	return pos
 
+def rand_real(*dims):
+	return numpy.random.randn(*dims).astype(numpy.float32)
+	#return numpy.ones(dims).astype(numpy.float32)
+
 def rand_complex(*dims):
-	real = numpy.random.randn(*dims)
-	imag = numpy.random.randn(*dims)
+	real = rand_real(*dims)
+	imag = rand_real(*dims)
 	return (real + 1j * imag).astype(numpy.complex64)
-	#return (numpy.ones(dims) + 1j * numpy.ones(dims)).astype(numpy.complex64)
 
 def difference(arr1, arr2, batch):
 	#diff = numpy.abs(arr1 - arr2) / numpy.abs(arr1)
@@ -69,13 +72,18 @@ def getDim(x, y, z):
 	else:
 		return clFFT_3D
 
-def getTestData(dim, x, y, z, batch):
+def getTestData(dim, x, y, z, batch, data_format):
 	if dim == clFFT_1D:
-		return rand_complex(x * batch)
+		dims = (x * batch,)
 	elif dim == clFFT_2D:
-		return rand_complex(x, y * batch)
+		dims = (x, y * batch)
 	elif dim == clFFT_3D:
-		return rand_complex(x, y, z * batch)
+		dims = (x, y, z * batch)
+
+	if data_format == clFFT_SplitComplexFormat:
+		return rand_real(*dims), rand_real(*dims)
+	else:
+		return rand_complex(*dims)
 
 def testPerformance(x, y, z):
 
@@ -121,7 +129,7 @@ def testPerformance(x, y, z):
 		str(t * 1000) + " ms, " + str(gflop / t) + " GFLOPS"
 	print "cufft: " + str(t_cufft * 1000) + " ms, " + str(gflop / t_cufft) + " GFLOPS"
 
-def testErrors(x, y, z, batch):
+def testErrors(x, y, z, batch, data_format):
 
 	buf_size_bytes = MAX_BUFFER_SIZE * 1024 * 1024
 	value_size = 8 # size of complex value, hardcoded (float, float)
@@ -133,7 +141,12 @@ def testErrors(x, y, z, batch):
 		return
 
 	dim = getDim(x, y, z)
-	data = getTestData(dim, x, y, z, batch)
+
+	if data_format == clFFT_SplitComplexFormat:
+		data_re, data_im = getTestData(dim, x, y, z, batch, data_format)
+		data = (data_re + 1j * data_im).astype(numpy.complex64)
+	else:
+		data = getTestData(dim, x, y, z, batch, data_format)
 
 	# Prepare arrays
 	a_gpu = gpuarray.to_gpu(data)
@@ -150,26 +163,63 @@ def testErrors(x, y, z, batch):
 
 	cufft_err = difference(cufft_res, data, batch)
 
-	del cufft_plan # forcefully release GPU memory
+	# relese some GPU memory; this will help low-end videocards
+	del cufft_plan
+	if data_format == clFFT_SplitComplexFormat:
+		del a_gpu
+		del b_gpu
+		a_gpu_re = gpuarray.to_gpu(data_re)
+		a_gpu_im = gpuarray.to_gpu(data_im)
+		b_gpu_re = gpuarray.GPUArray(data_re.shape, dtype=data_re.dtype)
+		b_gpu_im = gpuarray.GPUArray(data_im.shape, dtype=data_im.dtype)
 
 	# pycudafft tests
-	plan = FFTPlan(x, y, z, dim)
 
-	a_gpu.set(data)
-	clFFT_ExecuteInterleaved(plan, batch, clFFT_Forward, a_gpu.gpudata, b_gpu.gpudata)
-	pyfft_fw_outplace = b_gpu.get()
+	plan = FFTPlan(x, y, z, dim, data_format)
 
-	clFFT_ExecuteInterleaved(plan, batch, clFFT_Inverse, b_gpu.gpudata, a_gpu.gpudata)
-	pyfft_res_outplace = a_gpu.get() / (x * y * z)
+	# out of place forward
+	if data_format == clFFT_InterleavedComplexFormat:
+		a_gpu.set(data)
+		clFFT_ExecuteInterleaved(plan, batch, clFFT_Forward, a_gpu.gpudata, b_gpu.gpudata)
+		pyfft_fw_outplace = b_gpu.get()
+	else:
+		a_gpu_re.set(data_re)
+		a_gpu_im.set(data_im)
+		clFFT_ExecutePlanar(plan, batch, clFFT_Forward, a_gpu_re.gpudata, a_gpu_im.gpudata,
+			b_gpu_re.gpudata, b_gpu_im.gpudata)
+		pyfft_fw_outplace = b_gpu_re.get() + 1j * b_gpu_im.get()
+
+	# out of place inverse
+	if data_format == clFFT_InterleavedComplexFormat:
+		clFFT_ExecuteInterleaved(plan, batch, clFFT_Inverse, b_gpu.gpudata, a_gpu.gpudata)
+		pyfft_res_outplace = a_gpu.get() / (x * y * z)
+	else:
+		clFFT_ExecutePlanar(plan, batch, clFFT_Inverse, b_gpu_re.gpudata, b_gpu_im.gpudata,
+			a_gpu_re.gpudata, a_gpu_im.gpudata)
+		pyfft_res_outplace = (a_gpu_re.get() + 1j * a_gpu_im.get()) / (x * y * z)
 
 	pycudafft_err_outplace = difference(pyfft_res_outplace, data, batch)
 
-	a_gpu.set(data)
-	clFFT_ExecuteInterleaved(plan, batch, clFFT_Forward, a_gpu.gpudata, a_gpu.gpudata)
-	pyfft_fw_inplace = b_gpu.get()
+	# inplace forward
+	if data_format == clFFT_InterleavedComplexFormat:
+		a_gpu.set(data)
+		clFFT_ExecuteInterleaved(plan, batch, clFFT_Forward, a_gpu.gpudata, a_gpu.gpudata)
+		pyfft_fw_inplace = a_gpu.get()
+	else:
+		a_gpu_re.set(data_re)
+		a_gpu_im.set(data_im)
+		clFFT_ExecutePlanar(plan, batch, clFFT_Forward, a_gpu_re.gpudata, a_gpu_im.gpudata,
+			a_gpu_re.gpudata, a_gpu_im.gpudata)
+		pyfft_fw_inplace = a_gpu_re.get() + 1j * a_gpu_im.get()
 
-	clFFT_ExecuteInterleaved(plan, batch, clFFT_Inverse, a_gpu.gpudata, a_gpu.gpudata)
-	pyfft_res_inplace = a_gpu.get() / (x * y * z)
+	# inplace inverse
+	if data_format == clFFT_InterleavedComplexFormat:
+		clFFT_ExecuteInterleaved(plan, batch, clFFT_Inverse, a_gpu.gpudata, a_gpu.gpudata)
+		pyfft_res_inplace = a_gpu.get() / (x * y * z)
+	else:
+		clFFT_ExecutePlanar(plan, batch, clFFT_Inverse, a_gpu_re.gpudata, a_gpu_im.gpudata,
+			a_gpu_re.gpudata, a_gpu_im.gpudata)
+		pyfft_res_inplace = (a_gpu_re.get() + 1j * a_gpu_im.get()) / (x * y * z)
 
 	pycudafft_err_inplace = difference(pyfft_res_inplace, data, batch)
 
@@ -190,28 +240,31 @@ def testErrors(x, y, z, batch):
 
 def runErrorTests():
 
-	def wrapper(x, y, z, batch):
+	def wrapper(x, y, z, batch, data_format):
 		try:
-			testErrors(x, y, z, batch)
+			testErrors(x, y, z, batch, data_format)
 		except Exception, e:
-			print "failed: " + str([x, y, z]) + ", batch " + str(batch) + ": " + str(e)
+			print "failed: " + str([x, y, z]) + ", batch " + str(batch) + \
+				", " + ("split" if data_format == clFFT_SplitComplexFormat else "interleaved") + \
+				": " + str(e)
 
-	for batch in [1, 16, 128, 1024, 4096]:
+	for data_format in [clFFT_InterleavedComplexFormat, clFFT_SplitComplexFormat]:
+		for batch in [1, 16, 128, 1024, 4096]:
 
-		# 1D
-		for x in [3, 8, 9, 10, 13]:
-			wrapper(2 ** x, 1, 1, batch)
+			# 1D
+			for x in [3, 8, 9, 10, 13]:
+				wrapper(2 ** x, 1, 1, batch, data_format)
 
-		# 2D
-		for x in [4, 7, 8, 10]:
-			for y in [4, 7, 8, 10]:
-				wrapper(2 ** x, 2 ** y, 1, batch)
+			# 2D
+			for x in [4, 7, 8, 10]:
+				for y in [4, 7, 8, 10]:
+					wrapper(2 ** x, 2 ** y, 1, batch, data_format)
 
-		# 3D
-		for x in [4, 7, 10]:
-			for y in [4, 7, 10]:
-				for z in [4, 7, 10]:
-					wrapper(2 ** x, 2 ** y, 2 ** z, batch)
+			# 3D
+			for x in [4, 7, 10]:
+				for y in [4, 7, 10]:
+					for z in [4, 7, 10]:
+						wrapper(2 ** x, 2 ** y, 2 ** z, batch, data_format)
 
 def runPerformanceTests():
 	testPerformance(16, 1, 1)

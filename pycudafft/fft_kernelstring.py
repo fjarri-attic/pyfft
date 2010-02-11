@@ -1,5 +1,6 @@
 import math
 from fft_internal import *
+from clFFT import *
 
 # For any n, this function decomposes n into factors for loacal memory tranpose
 # based fft. Factors (radices) are sorted such that the first one (radixArray[0])
@@ -57,8 +58,11 @@ def getRadixArray(n, maxRadix):
 	else:
 		raise Exception("Wrong problem size: " + str(n))
 
-def insertHeader(kernelName):
-	return "__global__ void " + kernelName + "(float2 *in, float2 *out, int dir, int S)\n"
+def insertHeader(kernelName, dataFormat):
+	if dataFormat == clFFT_SplitComplexFormat:
+		return "__global__ void " + kernelName + "(float *in_real, float *in_imag, float *out_real, float *out_imag, int dir, int S)\n"
+	else:
+		return "__global__ void " + kernelName + "(float2 *in, float2 *out, int dir, int S)\n"
 
 def insertVariables(maxRadix):
 	# need to fill a[] with zeros, because otherwise nvcc crashes
@@ -74,13 +78,21 @@ def insertVariables(maxRadix):
 	int groupId = blockIdx.x;
 	"""
 
-def formattedLoad(aIndex, gIndex):
-	return "	a[" + str(aIndex) + "] = in[" + str(gIndex) + "];\n"
+def formattedLoad(aIndex, gIndex, dataFormat):
+	if dataFormat == clFFT_SplitComplexFormat:
+		return "	a[" + str(aIndex) + "].x = in_real[" + str(gIndex) + "];\n" + \
+			"	a[" + str(aIndex) + "].y = in_imag[" + str(gIndex) + "];\n"
+	else:
+		return "	a[" + str(aIndex) + "] = in[" + str(gIndex) + "];\n"
 
-def formattedStore(aIndex, gIndex):
-	return "	out[" + str(gIndex) + "] = a[" + str(aIndex) + "];\n"
+def formattedStore(aIndex, gIndex, dataFormat):
+	if dataFormat == clFFT_SplitComplexFormat:
+		return "	out_real[" + str(gIndex) + "] = a[" + str(aIndex) + "].x;\n" + \
+			"	out_imag[" + str(gIndex) + "] = a[" + str(aIndex) + "].y;\n"
+	else:
+		return "	out[" + str(gIndex) + "] = a[" + str(aIndex) + "];\n"
 
-def insertGlobalLoadsAndTranspose(N, numWorkItemsPerXForm, numXFormsPerWG, R0, mem_coalesce_width):
+def insertGlobalLoadsAndTranspose(N, numWorkItemsPerXForm, numXFormsPerWG, R0, mem_coalesce_width, dataFormat):
 	res = ""
 	log2NumWorkItemsPerXForm = log2(numWorkItemsPerXForm)
 	groupSize = numWorkItemsPerXForm * numXFormsPerWG
@@ -97,22 +109,34 @@ def insertGlobalLoadsAndTranspose(N, numWorkItemsPerXForm, numXFormsPerWG, R0, m
 			res += "		offset = mad24( mad24(groupId, " + \
 				str(numXFormsPerWG) + ", jj), " + str(N) + ", ii );\n"
 
-			res += "		in += offset;\n"
-			res += "		out += offset;\n"
+			if dataFormat == clFFT_InterleavedComplexFormat:
+				res += "		in += offset;\n"
+				res += "		out += offset;\n"
+			else:
+				res += "		in_real += offset;\n"
+				res += "		in_imag += offset;\n"
+				res += "		out_real += offset;\n"
+				res += "		out_imag += offset;\n"
 
 			for i in range(R0):
-				res += formattedLoad(i, i*numWorkItemsPerXForm)
+				res += formattedLoad(i, i*numWorkItemsPerXForm, dataFormat)
 			res += "	}\n"
 		else:
 			res += "	ii = lId;\n"
 			res += "	jj = 0;\n"
 			res += "	offset =  mad24(groupId, " + str(N) + ", ii);\n"
 
-			res += "		in += offset;\n"
-			res += "		out += offset;\n"
+			if dataFormat == clFFT_InterleavedComplexFormat:
+				res += "		in += offset;\n"
+				res += "		out += offset;\n"
+			else:
+				res += "		in_real += offset;\n"
+				res += "		in_imag += offset;\n"
+				res += "		out_real += offset;\n"
+				res += "		out_imag += offset;\n"
 
 			for i in range(R0):
-				res += formattedLoad(i, i*numWorkItemsPerXForm)
+				res += formattedLoad(i, i*numWorkItemsPerXForm, dataFormat)
 
 	elif N >= mem_coalesce_width:
 		numInnerIter = N / mem_coalesce_width
@@ -124,15 +148,22 @@ def insertGlobalLoadsAndTranspose(N, numWorkItemsPerXForm, numXFormsPerWG, R0, m
 		res += "	offset = mad24( groupId, " + str(numXFormsPerWG) + ", jj);\n"
 		res += "	offset = mad24( offset, " + str(N) + ", ii );\n"
 
-		res += "		in += offset;\n"
-		res += "		out += offset;\n"
+		if dataFormat == clFFT_InterleavedComplexFormat:
+			res += "		in += offset;\n"
+			res += "		out += offset;\n"
+		else:
+			res += "		in_real += offset;\n"
+			res += "		in_imag += offset;\n"
+			res += "		out_real += offset;\n"
+			res += "		out_imag += offset;\n"
 
 		res += "if((groupId == gridDim.x - 1) && s) {\n"
 		for i in range(numOuterIter):
 			res += "	if( jj < s ) {\n"
 			for j in range(numInnerIter):
 				res += formattedLoad(i * numInnerIter + j,
-					j * mem_coalesce_width + i * ( groupSize / mem_coalesce_width ) * N)
+					j * mem_coalesce_width + i * ( groupSize / mem_coalesce_width ) * N,
+					dataFormat)
 			res += "	}\n"
 			if i != numOuterIter - 1:
 				res += "	jj += " + str(groupSize / mem_coalesce_width) + ";\n"
@@ -142,7 +173,8 @@ def insertGlobalLoadsAndTranspose(N, numWorkItemsPerXForm, numXFormsPerWG, R0, m
 		for i in range(numOuterIter):
 			for j in range(numInnerIter):
 				res += formattedLoad(i * numInnerIter + j,
-					j * mem_coalesce_width + i * ( groupSize / mem_coalesce_width ) * N)
+					j * mem_coalesce_width + i * ( groupSize / mem_coalesce_width ) * N,
+					dataFormat)
 
 		res += "}\n"
 
@@ -178,8 +210,14 @@ def insertGlobalLoadsAndTranspose(N, numWorkItemsPerXForm, numXFormsPerWG, R0, m
 
 	else:
 		res += "	offset = mad24( groupId,  " + str(N * numXFormsPerWG) + ", lId );\n"
-		res += "		in += offset;\n"
-		res += "		out += offset;\n"
+		if dataFormat == clFFT_InterleavedComplexFormat:
+			res += "		in += offset;\n"
+			res += "		out += offset;\n"
+		else:
+			res += "		in_real += offset;\n"
+			res += "		in_imag += offset;\n"
+			res += "		out_real += offset;\n"
+			res += "		out_imag += offset;\n"
 
 		res += "	ii = lId & " + str(N-1) + ";\n"
 		res += "	jj = lId >> " + str(log2(N)) + ";\n"
@@ -188,7 +226,7 @@ def insertGlobalLoadsAndTranspose(N, numWorkItemsPerXForm, numXFormsPerWG, R0, m
 		res += "if((groupId == gridDim.x - 1) && s) {\n"
 		for i in range(R0):
 			res += "	if(jj < s )\n"
-			res += formattedLoad(i, i*groupSize)
+			res += formattedLoad(i, i*groupSize, dataFormat)
 			if i != R0 - 1:
 				res += "	jj += " + str(groupSize / N) + ";\n"
 
@@ -197,7 +235,7 @@ def insertGlobalLoadsAndTranspose(N, numWorkItemsPerXForm, numXFormsPerWG, R0, m
 		res += "else {\n"
 
 		for i in range(R0):
-			res += formattedLoad(i, i*groupSize)
+			res += formattedLoad(i, i*groupSize, dataFormat)
 
 		res += "}\n"
 
@@ -230,7 +268,7 @@ def insertGlobalLoadsAndTranspose(N, numWorkItemsPerXForm, numXFormsPerWG, R0, m
 
 	return res, lMemSize
 
-def insertGlobalStoresAndTranspose(N, maxRadix, Nr, numWorkItemsPerXForm, numXFormsPerWG, mem_coalesce_width):
+def insertGlobalStoresAndTranspose(N, maxRadix, Nr, numWorkItemsPerXForm, numXFormsPerWG, mem_coalesce_width, dataFormat):
 
 	groupSize = numWorkItemsPerXForm * numXFormsPerWG
 	lMemSize = 0
@@ -247,7 +285,7 @@ def insertGlobalStoresAndTranspose(N, maxRadix, Nr, numWorkItemsPerXForm, numXFo
 			j = i % numIter
 			k = i / numIter
 			ind = j * Nr + k
-			res += formattedStore(ind, i*numWorkItemsPerXForm)
+			res += formattedStore(ind, i*numWorkItemsPerXForm, dataFormat)
 
 		if numXFormsPerWG > 1:
 			res += "	}\n"
@@ -294,7 +332,9 @@ def insertGlobalStoresAndTranspose(N, maxRadix, Nr, numWorkItemsPerXForm, numXFo
 		for i in range(numOuterIter):
 			res += "	if( jj < s ) {\n"
 			for j in range(numInnerIter):
-				res += formattedStore(i*numInnerIter + j, j*mem_coalesce_width + i*(groupSize/mem_coalesce_width)*N)
+				res += formattedStore(i*numInnerIter + j,
+					j*mem_coalesce_width + i*(groupSize/mem_coalesce_width)*N,
+					dataFormat)
 			res += "	}\n"
 			if i != numOuterIter - 1:
 				res += "	jj += " + str(groupSize / mem_coalesce_width) + ";\n"
@@ -303,7 +343,9 @@ def insertGlobalStoresAndTranspose(N, maxRadix, Nr, numWorkItemsPerXForm, numXFo
 		res += "else {\n"
 		for i in range(numOuterIter):
 			for j in range(numInnerIter):
-				res += formattedStore(i*numInnerIter + j, j*mem_coalesce_width + i*(groupSize/mem_coalesce_width)*N)
+				res += formattedStore(i*numInnerIter + j,
+					j*mem_coalesce_width + i*(groupSize/mem_coalesce_width)*N,
+					dataFormat)
 
 		res += "}\n"
 
@@ -343,7 +385,7 @@ def insertGlobalStoresAndTranspose(N, maxRadix, Nr, numWorkItemsPerXForm, numXFo
 		res += "if((groupId == gridDim.x - 1) && s) {\n"
 		for i in range(maxRadix):
 			res += "	if(jj < s ) {\n"
-			res += formattedStore(i, i*groupSize)
+			res += formattedStore(i, i*groupSize, dataFormat)
 			res += "	}\n"
 			if i != maxRadix - 1:
 				res += "	jj +=" + str(groupSize / N) + ";\n"
@@ -351,7 +393,7 @@ def insertGlobalStoresAndTranspose(N, maxRadix, Nr, numWorkItemsPerXForm, numXFo
 		res += "}\n"
 		res += "else {\n"
 		for i in range(maxRadix):
-			res += formattedStore(i, i*groupSize)
+			res += formattedStore(i, i*groupSize, dataFormat)
 
 		res += "}\n"
 
@@ -493,7 +535,7 @@ def insertLocalStoreIndexArithmatic(numWorkItemsReq, numXFormsPerWG, Nr, offset,
 		return "	lMemStore = mad24(jj, " + str((numWorkItemsReq + offset)*Nr + midPad) + ", ii);\n"
 
 
-def createLocalMemfftKernelString(plan):
+def createLocalMemfftKernelString(plan, dataFormat):
 
 	n = plan.n.x
 	assert n <= plan.max_work_item_per_workgroup * plan.max_radix, "signal lenght too big for local mem fft"
@@ -544,7 +586,8 @@ def createLocalMemfftKernelString(plan):
 
 	localString += insertVariables(maxRadix)
 
-	res, lMemSize = insertGlobalLoadsAndTranspose(n, numWorkItemsPerXForm, numXFormsPerWG, maxRadix, plan.min_mem_coalesce_width)
+	res, lMemSize = insertGlobalLoadsAndTranspose(n, numWorkItemsPerXForm, numXFormsPerWG, maxRadix,
+		plan.min_mem_coalesce_width, dataFormat)
 	localString += res
 
 	kInfo.lmem_size =  lMemSize if lMemSize > kInfo.lmem_size else kInfo.lmem_size
@@ -576,7 +619,7 @@ def createLocalMemfftKernelString(plan):
 			Nprev = Ncurr
 			len_ = len_ / N[r]
 
-	res, lMemSize = insertGlobalStoresAndTranspose(n, maxRadix, N[numRadix - 1], numWorkItemsPerXForm, numXFormsPerWG, plan.min_mem_coalesce_width)
+	res, lMemSize = insertGlobalStoresAndTranspose(n, maxRadix, N[numRadix - 1], numWorkItemsPerXForm, numXFormsPerWG, plan.min_mem_coalesce_width, dataFormat)
 	localString += res
 
 	kInfo.lmem_size = lMemSize if lMemSize > kInfo.lmem_size else kInfo.lmem_size
@@ -584,7 +627,7 @@ def createLocalMemfftKernelString(plan):
 	if kInfo.lmem_size > 0:
 		localString = "	__shared__ float sMem[" + str(kInfo.lmem_size) + "];\n" + localString
 
-	localString = insertHeader(kernelName) + "{\n" + localString
+	localString = insertHeader(kernelName, dataFormat) + "{\n" + localString
 	localString += "}\n"
 
 	return localString
@@ -645,7 +688,7 @@ def getGlobalRadixInfo(n):
 
 	return radix, R1, R2
 
-def createGlobalFFTKernelString(plan, n, BS, dir, vertBS):
+def createGlobalFFTKernelString(plan, n, BS, dir, vertBS, dataFormat):
 
 	maxThreadsPerBlock = plan.max_work_item_per_workgroup
 	maxArrayLen = plan.max_radix
@@ -728,7 +771,7 @@ def createGlobalFFTKernelString(plan, n, BS, dir, vertBS):
 		kInfo.kernel_name = kernelName
 		plan.kernel_info.append(kInfo)
 
-		localString += insertHeader(kernelName)
+		localString += insertHeader(kernelName, dataFormat)
 		localString += "{\n"
 		if kInfo.lmem_size > 0:
 			localString += "	__shared__ float sMem[" + str(kInfo.lmem_size) + "];\n"
@@ -769,9 +812,17 @@ def createGlobalFFTKernelString(plan, n, BS, dir, vertBS):
 		localString += "j = tid >> " + str(lgBatchSize) + ";\n"
 		localString += "indexIn += mad24(j, " + str(strideI) + ", i);\n"
 
-		localString += "in += indexIn;\n"
-		for j in range(R1):
-			localString += "a[" + str(j) + "] = in[" + str(j*gInInc*strideI) + "];\n"
+		if dataFormat == clFFT_SplitComplexFormat:
+			localString += "in_real += indexIn;\n"
+			localString += "in_imag += indexIn;\n"
+			for j in range(R1):
+				localString += "a[" + str(j) + "].x = in_real[" + str(j*gInInc*strideI) + "];\n"
+			for j in range(R1):
+				localString += "a[" + str(j) + "].y = in_imag[" + str(j*gInInc*strideI) + "];\n"
+		else:
+			localString += "in += indexIn;\n"
+			for j in range(R1):
+				localString += "a[" + str(j) + "] = in[" + str(j*gInInc*strideI) + "];\n"
 
 		localString += "fftKernel" + str(R1) + "(a, dir);\n"
 
@@ -840,14 +891,30 @@ def createGlobalFFTKernelString(plan, n, BS, dir, vertBS):
 			localString += "__syncthreads();\n"
 
 			localString += "indexOut += tid;\n"
-			localString += "out += indexOut;\n"
-			for k in range(R1):
-				localString += "out[" + str(k*threadsPerBlock) + "] = a[" + str(k) + "];\n"
+			if dataFormat == clFFT_SplitComplexFormat:
+				localString += "out_real += indexOut;\n"
+				localString += "out_imag += indexOut;\n"
+				for k in range(R1):
+					localString += "out_real[" + str(k*threadsPerBlock) + "] = a[" + str(k) + "].x;\n"
+				for k in range(R1):
+					localString += "out_imag[" + str(k*threadsPerBlock) + "] = a[" + str(k) + "].y;\n"
+			else:
+				localString += "out += indexOut;\n"
+				for k in range(R1):
+					localString += "out[" + str(k*threadsPerBlock) + "] = a[" + str(k) + "];\n"
 		else:
 			localString += "indexOut += mad24(j, " + str(numIter*strideO) + ", i);\n"
-			localString += "out += indexOut;\n"
-			for k in range(R1):
-				localString += "out[" + str(((k%R2)*R1 + (k/R2))*strideO) + "] = a[" + str(k) + "];\n"
+			if dataFormat == clFFT_SplitComplexFormat:
+				localString += "out_real += indexOut;\n"
+				localString += "out_imag += indexOut;\n"
+				for k in range(R1):
+					localString += "out_real[" + str(((k%R2)*R1 + (k/R2))*strideO) + "] = a[" + str(k) + "].x;\n"
+				for k in range(R1):
+					localString += "out_imag[" + str(((k%R2)*R1 + (k/R2))*strideO) + "] = a[" + str(k) + "].y;\n"
+			else:
+				localString += "out += indexOut;\n"
+				for k in range(R1):
+					localString += "out[" + str(((k%R2)*R1 + (k/R2))*strideO) + "] = a[" + str(k) + "];\n"
 
 		localString += "}\n"
 
@@ -859,27 +926,27 @@ def FFT1D(plan, dir):
 
 	if dir == cl_fft_kernel_x:
 		if plan.n.x > plan.max_localmem_fft_size:
-			return createGlobalFFTKernelString(plan, plan.n.x, 1, cl_fft_kernel_x, 1)
+			return createGlobalFFTKernelString(plan, plan.n.x, 1, cl_fft_kernel_x, 1, plan.dataFormat)
 		elif plan.n.x > 1:
 			radixArray = getRadixArray(plan.n.x, 0)
 			if plan.n.x / radixArray[0] <= plan.max_work_item_per_workgroup:
-				return createLocalMemfftKernelString(plan);
+				return createLocalMemfftKernelString(plan, plan.dataFormat);
 			else:
 				radixArray = getRadixArray(plan.n.x, plan.max_radix)
 				if plan.n.x / radixArray[0] <= plan.max_work_item_per_workgroup:
-					return createLocalMemfftKernelString(plan)
+					return createLocalMemfftKernelString(plan, plan.dataFormat)
 				else:
-					return createGlobalFFTKernelString(plan, plan.n.x, 1, cl_fft_kernel_x, 1)
+					return createGlobalFFTKernelString(plan, plan.n.x, 1, cl_fft_kernel_x, 1, plan.dataFormat)
 		else:
 			return ""
 	elif dir == cl_fft_kernel_y:
 		if plan.n.y > 1:
-			return createGlobalFFTKernelString(plan, plan.n.y, plan.n.x, cl_fft_kernel_y, 1)
+			return createGlobalFFTKernelString(plan, plan.n.y, plan.n.x, cl_fft_kernel_y, 1, plan.dataFormat)
 		else:
 			return ""
 	elif dir == cl_fft_kernel_z:
 		if plan.n.z > 1:
-			return createGlobalFFTKernelString(plan, plan.n.z, plan.n.x*plan.n.y, cl_fft_kernel_z, 1)
+			return createGlobalFFTKernelString(plan, plan.n.z, plan.n.x*plan.n.y, cl_fft_kernel_z, 1, plan.dataFormat)
 		else:
 			return ""
 	else:

@@ -5,6 +5,9 @@ clFFT_1D	= 0
 clFFT_2D	= 1
 clFFT_3D	= 3
 
+clFFT_SplitComplexFormat = 0
+clFFT_InterleavedComplexFormat = 1
+
 class clFFT_Dim3:
 	def __init__(self, x, y, z):
 		self.x = x

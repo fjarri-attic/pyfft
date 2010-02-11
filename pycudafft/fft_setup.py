@@ -40,13 +40,8 @@ def createKernelList(plan):
 	for kInfo in plan.kernel_info:
 		kInfo.function_ref = plan.module.get_function(kInfo.kernel_name)
 		if kInfo.function_ref.shared_size_bytes > shared_mem_limit:
-			print "Not enough shared memory: requires " + str(kInfo.function_ref.shared_size_bytes) + \
-				", limit " + str(shared_mem_limit)
 			raise Exception("Insufficient shared memory")
 		if kInfo.function_ref.num_regs * kInfo.num_workitems_per_workgroup > reg_limit:
-			print "Not enough registers: requires " + str(kInfo.function_ref.num_regs) + \
-				" * " + str(kInfo.num_workitems_per_workgroup) + \
-				", limit " + str(reg_limit)
 			raise Exception("Insufficient registers")
 
 def getMaxKernelWorkGroupSize(plan):
@@ -56,7 +51,7 @@ def getMaxKernelWorkGroupSize(plan):
 
 class FFTPlan:
 
-	def __init__(self, x, y, z, dim):
+	def __init__(self, x, y, z, dim, data_format):
 
 		# TODO: check that dimensions are the power of two
 		# and number of elements in n corresponds to dim
@@ -67,13 +62,16 @@ class FFTPlan:
 				self.y = y
 				self.z = z
 
+		self.dataFormat = data_format
 		self.n = _Dim(x, y, z)
 		self.dim = dim
 		self.num_kernels = 0
 		self.program = 0
 		self.temp_buffer_needed = False
 		self.last_batch_size = 0
-		self.tempmemobj = 0
+		self.tempmemobj = None
+		self.tempmemobj_re = None
+		self.tempmemobj_im = None
 		self.max_localmem_fft_size = 2048
 		self.max_radix = 16
 		self.min_mem_coalesce_width = 16
