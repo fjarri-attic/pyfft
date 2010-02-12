@@ -6,44 +6,6 @@ from pycuda.autoinit import device
 from pycuda.compiler import SourceModule
 from pycuda.driver import device_attribute
 
-
-def getBlockConfigAndKernelString(plan):
-
-	plan.temp_buffer_needed = 0;
-	plan.kernel_string = base_kernels.render()
-
-	plan.kernel_string += "\nextern \"C\"{\n"
-
-	if plan.dim == clFFT_1D:
-		plan.kernel_string += FFT1D(plan, cl_fft_kernel_x)
-	elif plan.dim == clFFT_2D:
-		plan.kernel_string += FFT1D(plan, cl_fft_kernel_x)
-		plan.kernel_string += FFT1D(plan, cl_fft_kernel_y)
-	elif plan.dim == clFFT_3D:
-		plan.kernel_string += FFT1D(plan, cl_fft_kernel_x)
-		plan.kernel_string += FFT1D(plan, cl_fft_kernel_y)
-		plan.kernel_string += FFT1D(plan, cl_fft_kernel_z)
-	else:
-		raise Exception("Wrong dimension")
-
-	plan.kernel_string += "\n}\n"
-
-	plan.temp_buffer_needed = False
-	for kInfo in plan.kernel_info:
-		if not kInfo.in_place_possible:
-			plan.temp_buffer_needed = True
-
-def createKernelList(plan):
-	shared_mem_limit = device.get_attribute(device_attribute.MAX_SHARED_MEMORY_PER_BLOCK)
-	reg_limit = device.get_attribute(device_attribute.MAX_REGISTERS_PER_BLOCK)
-
-	for kInfo in plan.kernel_info:
-		kInfo.function_ref = plan.module.get_function(kInfo.kernel_name)
-		if kInfo.function_ref.shared_size_bytes > shared_mem_limit:
-			raise Exception("Insufficient shared memory")
-		if kInfo.function_ref.num_regs * kInfo.num_workitems_per_workgroup > reg_limit:
-			raise Exception("Insufficient registers")
-
 def getMaxKernelWorkGroupSize(plan):
 	# TODO: investigate the original function and write proper port
 	return 32768
@@ -84,15 +46,44 @@ class FFTPlan:
 		# TODO: make this 'recompile-if-necessary' code more good looking
 		done = False
 		while not done:
-			self.kernel_string = ""
-			self.kernel_info = []
-			getBlockConfigAndKernelString(self)
-			self.module = SourceModule(self.kernel_string, no_extern_c=True)
+			self.kernels = []
+			self.getBlockConfigAndKernelString()
 			try:
-				createKernelList(self)
+				self.compileKernels()
 			except:
 				if self.max_work_item_per_workgroup > 1:
 					self.max_work_item_per_workgroup /= 2
 					continue
 				raise Exception("Cannot meet number of registers/shared memory requirements")
 			done = True
+
+	def compileKernels(self):
+		shared_mem_limit = device.get_attribute(device_attribute.MAX_SHARED_MEMORY_PER_BLOCK)
+		reg_limit = device.get_attribute(device_attribute.MAX_REGISTERS_PER_BLOCK)
+
+		for kInfo in self.kernels:
+			kInfo.module = SourceModule(kInfo.kernel_string, no_extern_c=True)
+			kInfo.function_ref = kInfo.module.get_function(kInfo.kernel_name)
+			if kInfo.function_ref.shared_size_bytes > shared_mem_limit:
+				raise Exception("Insufficient shared memory")
+			if kInfo.function_ref.num_regs * kInfo.num_workitems_per_workgroup > reg_limit:
+				raise Exception("Insufficient registers")
+
+	def getBlockConfigAndKernelString(self):
+
+		if self.dim == clFFT_1D:
+			self.kernels.extend(FFT1D(self, cl_fft_kernel_x))
+		elif self.dim == clFFT_2D:
+			self.kernels.extend(FFT1D(self, cl_fft_kernel_x))
+			self.kernels.extend(FFT1D(self, cl_fft_kernel_y))
+		elif self.dim == clFFT_3D:
+			self.kernels.extend(FFT1D(self, cl_fft_kernel_x))
+			self.kernels.extend(FFT1D(self, cl_fft_kernel_y))
+			self.kernels.extend(FFT1D(self, cl_fft_kernel_z))
+		else:
+			raise Exception("Wrong dimension")
+
+		self.temp_buffer_needed = False
+		for kInfo in self.kernels:
+			if not kInfo.in_place_possible:
+				self.temp_buffer_needed = True

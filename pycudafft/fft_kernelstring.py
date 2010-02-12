@@ -1,6 +1,18 @@
 import math
 from fft_internal import *
 from clFFT import *
+from fft_base_kernels import *
+
+class cl_fft_kernel_info:
+	def __init__(self):
+		self.module = None
+		self.kernel_name = ""
+		self.lmem_size = 0
+		self.num_workgroups = 0
+		self.num_workitems_per_workgroup = 0
+		self.cl_fft_kernel_dir = None
+		self.in_place_possible = None
+		self.kernel_string = None
 
 # For any n, this function decomposes n into factors for loacal memory tranpose
 # based fft. Factors (radices) are sorted such that the first one (radixArray[0])
@@ -381,7 +393,7 @@ def insertGlobalStoresAndTranspose(N, maxRadix, Nr, numWorkItemsPerXForm, numXFo
 		for i in range(maxRadix):
 			res += "	a[" + str(i) + "].y = sMem[lMemStore+" + str(i*( groupSize / N )*( N + numWorkItemsPerXForm )) + "];\n"
 		res += "	__syncthreads();\n"
-		# XXX
+
 		res += "if((groupId == gridDim.x - 1) && s) {\n"
 		for i in range(maxRadix):
 			res += "	if(jj < s ) {\n"
@@ -402,7 +414,6 @@ def insertGlobalStoresAndTranspose(N, maxRadix, Nr, numWorkItemsPerXForm, numXFo
 	return res, lMemSize
 
 def insertfftKernel(Nr, numIter):
-	#return "" # XXX
 	res = ""
 	for i in range(numIter):
 		res += "	fftKernel" + str(Nr) + "(a+" + str(i*Nr) + ", dir);\n"
@@ -562,8 +573,7 @@ def createLocalMemfftKernelString(plan, dataFormat):
 
 	localString = ""
 
-	kCount = len(plan.kernel_info)
-	kernelName = "fft" + str(kCount);
+	kernelName = "fft"
 
 	kInfo = cl_fft_kernel_info()
 	kInfo.kernel = 0
@@ -573,7 +583,6 @@ def createLocalMemfftKernelString(plan, dataFormat):
 	kInfo.dir = cl_fft_kernel_x
 	kInfo.in_place_possible = 1
 	kInfo.kernel_name = kernelName
-	plan.kernel_info.append(kInfo)
 
 	numWorkItemsPerXForm = n / radixArray[0]
 	numWorkItemsPerWG = 64 if numWorkItemsPerXForm <= 64 else numWorkItemsPerXForm
@@ -629,10 +638,13 @@ def createLocalMemfftKernelString(plan, dataFormat):
 	if kInfo.lmem_size > 0:
 		localString = "	__shared__ float sMem[" + str(kInfo.lmem_size) + "];\n" + localString
 
-	localString = insertHeader(kernelName, dataFormat) + "{\n" + localString
+	localString = base_kernels.render() + "\nextern \"C\" {\n" + insertHeader(kernelName, dataFormat) + "{\n" + localString
 	localString += "}\n"
 
-	return localString
+	localString += "}\n" # closing 'extern "C"'
+
+	kInfo.kernel_string = localString
+	return kInfo
 
 # For n larger than what can be computed using local memory fft, global transposes
 # multiple kernel launces is needed. For these sizes, n can be decomposed using
@@ -682,8 +694,8 @@ def getGlobalRadixInfo(n):
 			r1 = 2
 			r2 = B / r1
 			while r2 > r1:
-			   r1 *= 2
-			   r2 = B / r1
+				r1 *= 2
+				r2 = B / r1
 
 			R1.append(r1)
 			R2.append(r2)
@@ -701,19 +713,16 @@ def createGlobalFFTKernelString(plan, n, BS, dir, vertBS, dataFormat):
 
 	numPasses = len(radixArr)
 
-	localString = ""
-	kCount = len(plan.kernel_info)
-
 	N = n
 	m = log2(n)
 	Rinit = BS if vertical else 1
 	batchSize = min(BS, batchSize) if vertical else batchSize
 
-	localString = ""
+	kernels = []
 
 	for passNum in range(numPasses):
 
-		kernelName = ""
+		localString = base_kernels.render() + "\nextern \"C\" {\n"
 
 		radix = radixArr[passNum]
 		R1 = R1Arr[passNum]
@@ -750,8 +759,7 @@ def createGlobalFFTKernelString(plan, n, BS, dir, vertBS, dataFormat):
 		else:
 			numBlocks *= vertBS
 
-		kernelName = "fft" + str(kCount)
-		kCount += 1
+		kernelName = "fft"
 		kInfo = cl_fft_kernel_info()
 		kInfo.kernel = 0
 		if R2 == 1:
@@ -771,7 +779,6 @@ def createGlobalFFTKernelString(plan, n, BS, dir, vertBS, dataFormat):
 			kInfo.in_place_possible = False
 
 		kInfo.kernel_name = kernelName
-		plan.kernel_info.append(kInfo)
 
 		localString += insertHeader(kernelName, dataFormat)
 		localString += "{\n"
@@ -920,37 +927,40 @@ def createGlobalFFTKernelString(plan, n, BS, dir, vertBS, dataFormat):
 
 		localString += "}\n"
 
+		localString += "}\n" # closing 'extern "C"'
+
 		N /= radix
 
-	return localString
+		kInfo.kernel_string = localString
+		kernels.append(kInfo)
+
+	return kernels
 
 def FFT1D(plan, dir):
 
+	kernels = []
+
 	if dir == cl_fft_kernel_x:
 		if plan.n.x > plan.max_localmem_fft_size:
-			return createGlobalFFTKernelString(plan, plan.n.x, 1, cl_fft_kernel_x, 1, plan.dataFormat)
+			kernels.extend(createGlobalFFTKernelString(plan, plan.n.x, 1, cl_fft_kernel_x, 1, plan.dataFormat))
 		elif plan.n.x > 1:
 			radixArray = getRadixArray(plan.n.x, 0)
 			if plan.n.x / radixArray[0] <= plan.max_work_item_per_workgroup:
-				return createLocalMemfftKernelString(plan, plan.dataFormat);
+				kernels.append(createLocalMemfftKernelString(plan, plan.dataFormat))
 			else:
 				radixArray = getRadixArray(plan.n.x, plan.max_radix)
 				if plan.n.x / radixArray[0] <= plan.max_work_item_per_workgroup:
-					return createLocalMemfftKernelString(plan, plan.dataFormat)
+					kernels.append(createLocalMemfftKernelString(plan, plan.dataFormat))
 				else:
 					# TODO: find out which conditions are necessary to execute this code
-					return createGlobalFFTKernelString(plan, plan.n.x, 1, cl_fft_kernel_x, 1, plan.dataFormat)
-		else:
-			return ""
+					kernels.extend(createGlobalFFTKernelString(plan, plan.n.x, 1, cl_fft_kernel_x, 1, plan.dataFormat))
 	elif dir == cl_fft_kernel_y:
 		if plan.n.y > 1:
-			return createGlobalFFTKernelString(plan, plan.n.y, plan.n.x, cl_fft_kernel_y, 1, plan.dataFormat)
-		else:
-			return ""
+			kernels.extend(createGlobalFFTKernelString(plan, plan.n.y, plan.n.x, cl_fft_kernel_y, 1, plan.dataFormat))
 	elif dir == cl_fft_kernel_z:
 		if plan.n.z > 1:
-			return createGlobalFFTKernelString(plan, plan.n.z, plan.n.x*plan.n.y, cl_fft_kernel_z, 1, plan.dataFormat)
-		else:
-			return ""
+			kernels.extend(createGlobalFFTKernelString(plan, plan.n.z, plan.n.x*plan.n.y, cl_fft_kernel_z, 1, plan.dataFormat))
 	else:
 		raise Exception("Wrong direction")
+
+	return kernels

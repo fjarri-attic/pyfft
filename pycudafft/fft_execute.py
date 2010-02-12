@@ -36,8 +36,7 @@ def clFFT_ExecuteInterleaved(plan, batchSize, dir, data_in, data_out):
 
 	memObj = (data_in, data_out, plan.tempmemobj)
 
-	kernelInfo = plan.kernel_info
-	numKernels = len(plan.kernel_info)
+	numKernels = len(plan.kernels)
 
 	numKernelsOdd = (numKernels % 2 == 1)
 	currRead  = 0
@@ -53,7 +52,7 @@ def clFFT_ExecuteInterleaved(plan, batchSize, dir, data_in, data_out):
 		else:
 			currWrite = 1 if numKernelsOdd else 2
 
-		for kInfo in kernelInfo:
+		for kInfo in plan.kernels:
 			if isInPlace and numKernelsOdd and not inPlaceDone and kInfo.in_place_possible:
 				currWrite = currRead
 				inPlaceDone = True
@@ -72,7 +71,7 @@ def clFFT_ExecuteInterleaved(plan, batchSize, dir, data_in, data_out):
 	# no dram shuffle (transpose required) transform
 	# all kernels can execute in-place.
 	else:
-		for kInfo in kernelInfo:
+		for kInfo in plan.kernels:
 
 			s = batchSize
 			s, gWorkItems, lWorkItems = getKernelWorkDimensions(plan, kInfo, s)
@@ -99,8 +98,7 @@ def clFFT_ExecutePlanar(plan, batchSize, dir, data_in_re, data_in_im, data_out_r
 	memObj_re = (data_in_re, data_out_re, plan.tempmemobj_re)
 	memObj_im = (data_in_im, data_out_im, plan.tempmemobj_im)
 
-	kernelInfo = plan.kernel_info
-	numKernels = len(plan.kernel_info)
+	numKernels = len(plan.kernels)
 
 	numKernelsOdd = (numKernels % 2 == 1)
 	currRead  = 0
@@ -116,7 +114,7 @@ def clFFT_ExecutePlanar(plan, batchSize, dir, data_in_re, data_in_im, data_out_r
 		else:
 			currWrite = 1 if numKernelsOdd else 2
 
-		for kInfo in kernelInfo:
+		for kInfo in plan.kernels:
 			if isInPlace and numKernelsOdd and not inPlaceDone and kInfo.in_place_possible:
 				currWrite = currRead
 				inPlaceDone = True
@@ -136,7 +134,7 @@ def clFFT_ExecutePlanar(plan, batchSize, dir, data_in_re, data_in_im, data_out_r
 	# no dram shuffle (transpose required) transform
 	# all kernels can execute in-place.
 	else:
-		for kInfo in kernelInfo:
+		for kInfo in plan.kernels:
 
 			s = batchSize
 			s, gWorkItems, lWorkItems = getKernelWorkDimensions(plan, kInfo, s)
