@@ -266,6 +266,10 @@ def runErrorTests():
 					for z in [4, 7, 10]:
 						wrapper(2 ** x, 2 ** y, 2 ** z, batch, data_format)
 
+	# these tests currently do not work, added to achieve 100% coverage
+	wrapper(2048, 1, 1, 1, clFFT_InterleavedComplexFormat)
+	wrapper(16, 1, 1, 1, clFFT_InterleavedComplexFormat) # while plan.mem_coalesce_with = 32
+
 def runPerformanceTests():
 	testPerformance(16, 1, 1)
 	testPerformance(1024, 1, 1)

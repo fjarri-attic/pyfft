@@ -423,6 +423,7 @@ def insertTwiddleKernel(Nr, numIter, Nprev, len, numWorkItemsPerXForm):
 			if Nprev > 1:
 				res += "	angf = (float) ((" + str(z*numWorkItemsPerXForm) + " + ii) >>" + str(logNPrev) + ");\n"
 			else:
+				# TODO: find out which conditions are necessary to execute this code
 				res += "	angf = (float) (" + str(z*numWorkItemsPerXForm) + " + ii);\n"
 
 		for k in range(1, Nr):
@@ -452,6 +453,7 @@ def getPadding(numWorkItemsPerXForm, Nprev, numWorkItemsReq, numXFormsPerWG, Nr,
 		if bankNum >= numWorkItemsPerXForm:
 			midPad = 0
 		else:
+			# TODO: find out which conditions are necessary to execute this code
 			midPad = numWorkItemsPerXForm - bankNum
 
 	lMemSize = ( numWorkItemsReq + offset) * Nr * numXFormsPerWG + midPad * (numXFormsPerWG - 1)
@@ -936,6 +938,7 @@ def FFT1D(plan, dir):
 				if plan.n.x / radixArray[0] <= plan.max_work_item_per_workgroup:
 					return createLocalMemfftKernelString(plan, plan.dataFormat)
 				else:
+					# TODO: find out which conditions are necessary to execute this code
 					return createGlobalFFTKernelString(plan, plan.n.x, 1, cl_fft_kernel_x, 1, plan.dataFormat)
 		else:
 			return ""
