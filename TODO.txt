@@ -11,6 +11,9 @@ global:
       blockIdx.x by gridDim.x * blockIdx.y + blockIdx.x
     - when function uses too much registers, recreate with new block size only it, not the whole code
     - find a way to disable compilation warnings; probably can be done after moving to templating engine
+    - add own exception to library
+    - check currently not working testcases (they were added in order to get 100% coverage on initially
+      ported code; they do not work because of some bug in PyCuda)
 
 optimizations (only after benchmarks!):
     - replace mad24() with vector function
