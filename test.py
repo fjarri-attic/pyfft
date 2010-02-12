@@ -98,12 +98,12 @@ def testPerformance(x, y, z):
 		return
 
 	dim = getDim(x, y, z)
-	data = getTestData(dim, x, y, z, batch)
+	data = getTestData(dim, x, y, z, batch, clFFT_InterleavedComplexFormat)
 
 	a_gpu = gpuarray.to_gpu(data)
 	b_gpu = gpuarray.GPUArray(data.shape, dtype=data.dtype)
 
-	plan = FFTPlan(x, y, z, dim)
+	plan = FFTPlan(x, y, z, dim, clFFT_InterleavedComplexFormat)
 
 	start = cuda.Event()
 	stop = cuda.Event()
