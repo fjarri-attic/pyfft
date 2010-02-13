@@ -41,14 +41,14 @@ def createLocalMemfftKernelString(plan, split):
 	kInfo.in_place_possible = True
 	kInfo.kernel_name = "fft"
 
-	numWorkItemsPerXForm = n / radixArray[0]
-	numWorkItemsPerWG = 64 if numWorkItemsPerXForm <= 64 else numWorkItemsPerXForm
+	threads_per_xform = n / radixArray[0]
+	numWorkItemsPerWG = 64 if threads_per_xform <= 64 else threads_per_xform
 	assert numWorkItemsPerWG <= plan.max_work_item_per_workgroup
-	numXFormsPerWG = numWorkItemsPerWG / numWorkItemsPerXForm
-	kInfo.num_workgroups = numXFormsPerWG
+	xforms_per_block = numWorkItemsPerWG / threads_per_xform
+	kInfo.num_workgroups = xforms_per_block
 	kInfo.num_workitems_per_workgroup = numWorkItemsPerWG
 
-	kInfo.lmem_size = getSharedMemorySize(n, radixArray, numWorkItemsPerXForm, numXFormsPerWG,
+	kInfo.lmem_size = getSharedMemorySize(n, radixArray, threads_per_xform, xforms_per_block,
 		plan.num_local_mem_banks, plan.min_mem_coalesce_width)
 
 	kInfo.kernel_string = _template.get_def("localKernel").render(
@@ -57,8 +57,8 @@ def createLocalMemfftKernelString(plan, split):
 		split=split,
 		kernel_name=kInfo.kernel_name,
 		shared_mem=kInfo.lmem_size,
-		numWorkItemsPerXForm=numWorkItemsPerXForm,
-		numXFormsPerWG=numXFormsPerWG,
+		threads_per_xform=threads_per_xform,
+		xforms_per_block=xforms_per_block,
 		min_mem_coalesce_width=plan.min_mem_coalesce_width,
 		N=radixArray,
 		n=n,

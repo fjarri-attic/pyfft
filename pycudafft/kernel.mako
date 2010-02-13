@@ -226,53 +226,53 @@
 	%endif
 </%def>
 
-<%def name="insertGlobalLoadsAndTranspose(N, numWorkItemsPerXForm, numXFormsPerWG, R0, mem_coalesce_width, split)">
+<%def name="insertGlobalLoadsAndTranspose(n, threads_per_xform, xforms_per_block, radix, mem_coalesce_width, split)">
 
 	<%
-		log2NumWorkItemsPerXForm = log2(numWorkItemsPerXForm)
-		groupSize = numWorkItemsPerXForm * numXFormsPerWG
+		log2_threads_per_xform = log2(threads_per_xform)
+		block_size = threads_per_xform * xforms_per_block
 	%>
 
-	%if numXFormsPerWG > 1:
-		s = S & ${numXFormsPerWG - 1};
+	%if xforms_per_block > 1:
+		s = S & ${xforms_per_block - 1};
 	%endif
 
-	%if numWorkItemsPerXForm >= mem_coalesce_width:
-		%if numXFormsPerWG > 1:
-			ii = lId & ${numWorkItemsPerXForm - 1};
-			jj = lId >> ${log2NumWorkItemsPerXForm};
+	%if threads_per_xform >= mem_coalesce_width:
+		%if xforms_per_block > 1:
+			ii = lId & ${threads_per_xform - 1};
+			jj = lId >> ${log2_threads_per_xform};
 
 			if(!s || (groupId < gridDim.x - 1) || (jj < s))
 			{
-				offset = mad24(mad24(groupId, ${numXFormsPerWG}, jj), ${N}, ii);
+				offset = mad24(mad24(groupId, ${xforms_per_block}, jj), ${n}, ii);
 				${insertGlobalBuffersShift(split)}
 
-			%for i in range(R0):
-				${insertGlobalLoad(i, i * numWorkItemsPerXForm, split)}
+			%for i in range(radix):
+				${insertGlobalLoad(i, i * threads_per_xform, split)}
 			%endfor
 			}
 		%else:
 			ii = lId;
 			jj = 0;
-			offset = mad24(groupId, ${N}, ii);
+			offset = mad24(groupId, ${n}, ii);
 			${insertGlobalBuffersShift(split)}
 
-			%for i in range(R0):
-				${insertGlobalLoad(i, i * numWorkItemsPerXForm, split)}
+			%for i in range(radix):
+				${insertGlobalLoad(i, i * threads_per_xform, split)}
 			%endfor
 		%endif
 
-	%elif N >= mem_coalesce_width:
+	%elif n >= mem_coalesce_width:
 		<%
-			numInnerIter = N / mem_coalesce_width
-			numOuterIter = numXFormsPerWG / (groupSize / mem_coalesce_width)
+			numInnerIter = n / mem_coalesce_width
+			numOuterIter = xforms_per_block / (block_size / mem_coalesce_width)
 		%>
 
 		ii = lId & ${mem_coalesce_width - 1};
 		jj = lId >> ${log2(mem_coalesce_width)};
-		lMemStore = mad24(jj, ${N + numWorkItemsPerXForm}, ii);
-		offset = mad24(groupId, ${numXFormsPerWG}, jj);
-		offset = mad24(offset, ${N}, ii);
+		lMemStore = mad24(jj, ${n + threads_per_xform}, ii);
+		offset = mad24(groupId, ${xforms_per_block}, jj);
+		offset = mad24(offset, ${n}, ii);
 		${insertGlobalBuffersShift(split)}
 
 		if((groupId == gridDim.x - 1) && s)
@@ -282,11 +282,11 @@
 			{
 			%for j in range(numInnerIter):
 				${insertGlobalLoad(i * numInnerIter + j, \
-					j * mem_coalesce_width + i * ( groupSize / mem_coalesce_width ) * N, split)}
+					j * mem_coalesce_width + i * ( block_size / mem_coalesce_width ) * n, split)}
 			%endfor
 			}
 			%if i != numOuterIter - 1:
-				jj += ${groupSize / mem_coalesce_width};
+				jj += ${block_size / mem_coalesce_width};
 			%endif
 		%endfor
 		}
@@ -295,108 +295,108 @@
 		%for i in range(numOuterIter):
 			%for j in range(numInnerIter):
 				${insertGlobalLoad(i * numInnerIter + j, \
-					j * mem_coalesce_width + i * ( groupSize / mem_coalesce_width ) * N, split)}
+					j * mem_coalesce_width + i * ( block_size / mem_coalesce_width ) * n, split)}
 			%endfor
 		%endfor
 		}
 
-		ii = lId & ${numWorkItemsPerXForm - 1};
-		jj = lId >> ${log2NumWorkItemsPerXForm};
-		lMemLoad = mad24(jj, ${N + numWorkItemsPerXForm}, ii);
+		ii = lId & ${threads_per_xform - 1};
+		jj = lId >> ${log2_threads_per_xform};
+		lMemLoad = mad24(jj, ${n + threads_per_xform}, ii);
 
 		%for i in range(numOuterIter):
 			%for j in range(numInnerIter):
 				sMem[lMemStore + ${j * mem_coalesce_width + \
-					i * (groupSize / mem_coalesce_width) * (N + numWorkItemsPerXForm)}] =
+					i * (block_size / mem_coalesce_width) * (n + threads_per_xform)}] =
 					a[${i * numInnerIter + j}].x;
 			%endfor
 		%endfor
 		__syncthreads();
 
-		%for i in range(R0):
-			a[${i}].x = sMem[lMemLoad + ${i * numWorkItemsPerXForm}];
+		%for i in range(radix):
+			a[${i}].x = sMem[lMemLoad + ${i * threads_per_xform}];
 		%endfor
 		__syncthreads();
 
 		%for i in range(numOuterIter):
 			%for j in range(numInnerIter):
 				sMem[lMemStore + ${j * mem_coalesce_width + \
-					i * (groupSize / mem_coalesce_width) * (N + numWorkItemsPerXForm )}] =
+					i * (block_size / mem_coalesce_width) * (n + threads_per_xform )}] =
 					a[${i * numInnerIter + j}].y;
 			%endfor
 		%endfor
 		__syncthreads();
 
-		%for i in range(R0):
-			a[${i}].y = sMem[lMemLoad + ${i * numWorkItemsPerXForm}];
+		%for i in range(radix):
+			a[${i}].y = sMem[lMemLoad + ${i * threads_per_xform}];
 		%endfor
 		__syncthreads();
 	%else:
-		offset = mad24(groupId, ${N * numXFormsPerWG}, lId);
+		offset = mad24(groupId, ${n * xforms_per_block}, lId);
 		${insertGlobalBuffersShift(split)}
 
-		ii = lId & ${N - 1};
-		jj = lId >> ${log2(N)};
-		lMemStore = mad24(jj, ${N + numWorkItemsPerXForm}, ii);
+		ii = lId & ${n - 1};
+		jj = lId >> ${log2(n)};
+		lMemStore = mad24(jj, ${n + threads_per_xform}, ii);
 
 		if((groupId == gridDim.x - 1) && s)
 		{
-		%for i in range(R0):
+		%for i in range(radix):
 			if(jj < s)
-				${insertGlobalLoad(i, i * groupSize, split)}
-			%if i != R0 - 1:
-				jj += ${groupSize / N};
+				${insertGlobalLoad(i, i * block_size, split)}
+			%if i != radix - 1:
+				jj += ${block_size / n};
 			%endif
 		%endfor
 		}
 		else
 		{
-		%for i in range(R0):
-			${insertGlobalLoad(i, i*groupSize, split)}
+		%for i in range(radix):
+			${insertGlobalLoad(i, i*block_size, split)}
 		%endfor
 		}
 
-		%if numWorkItemsPerXForm > 1:
-			ii = lId & ${numWorkItemsPerXForm - 1};
-			jj = lId >> ${log2NumWorkItemsPerXForm};
-			lMemLoad = mad24(jj, ${N + numWorkItemsPerXForm}, ii);
+		%if threads_per_xform > 1:
+			ii = lId & ${threads_per_xform - 1};
+			jj = lId >> ${log2_threads_per_xform};
+			lMemLoad = mad24(jj, ${n + threads_per_xform}, ii);
 		%else:
 			ii = 0;
 			jj = lId;
-			lMemLoad = mul24(jj, ${N + numWorkItemsPerXForm});
+			lMemLoad = mul24(jj, ${n + threads_per_xform});
 		%endif
 
-		%for i in range(R0):
-			sMem[lMemStore + ${i * ( groupSize / N ) * ( N + numWorkItemsPerXForm )}] = a[${i}].x;
+		%for i in range(radix):
+			sMem[lMemStore + ${i * ( block_size / n ) * ( n + threads_per_xform )}] = a[${i}].x;
 		%endfor
 		__syncthreads();
 
-		%for i in range(R0):
-			a[${i}].x = sMem[lMemLoad + ${i * numWorkItemsPerXForm}];
+		%for i in range(radix):
+			a[${i}].x = sMem[lMemLoad + ${i * threads_per_xform}];
 		%endfor
 		__syncthreads();
 
-		%for i in range(R0):
-			sMem[lMemStore + ${i * (groupSize / N) * (N + numWorkItemsPerXForm)}] = a[${i}].y;
+		%for i in range(radix):
+			sMem[lMemStore + ${i * (block_size / n) * (n + threads_per_xform)}] = a[${i}].y;
 		%endfor
 		__syncthreads();
 
-		%for i in range(R0):
-			a[${i}].y = sMem[lMemLoad + ${i * numWorkItemsPerXForm}];
+		%for i in range(radix):
+			a[${i}].y = sMem[lMemLoad + ${i * threads_per_xform}];
 		%endfor
 		__syncthreads();
 	%endif
 </%def>
 
-<%def name="insertGlobalStoresAndTranspose(N, maxRadix, Nr, numWorkItemsPerXForm, numXFormsPerWG, mem_coalesce_width, split)">
+<%def name="insertGlobalStoresAndTranspose(N, maxRadix, Nr, threads_per_xform, xforms_per_block, mem_coalesce_width, split)">
 
 	<%
-		groupSize = numWorkItemsPerXForm * numXFormsPerWG
+		block_size = threads_per_xform * xforms_per_block
 		numIter = maxRadix / Nr
 	%>
 
-	%if numWorkItemsPerXForm >= mem_coalesce_width:
-		%if numXFormsPerWG > 1:
+	%if threads_per_xform >= mem_coalesce_width:
+		%if xforms_per_block > 1:
 			if(!s || (groupId < gridDim.x - 1) || (jj < s))
 			{
 		%endif
@@ -407,22 +407,22 @@
 				k = i / numIter
 				ind = j * Nr + k
 			%>
-			${insertGlobalStore(ind, i * numWorkItemsPerXForm, split)}
+			${insertGlobalStore(ind, i * threads_per_xform, split)}
 		%endfor
 
-		%if numXFormsPerWG > 1:
+		%if xforms_per_block > 1:
 			}
 		%endif
 
 	%elif N >= mem_coalesce_width:
 		<%
 			numInnerIter = N / mem_coalesce_width
-			numOuterIter = numXFormsPerWG / (groupSize / mem_coalesce_width)
+			numOuterIter = xforms_per_block / (block_size / mem_coalesce_width)
 		%>
-		lMemLoad  = mad24(jj, ${N + numWorkItemsPerXForm}, ii);
+		lMemLoad  = mad24(jj, ${N + threads_per_xform}, ii);
 		ii = lId & ${mem_coalesce_width - 1};
 		jj = lId >> ${log2(mem_coalesce_width)};
-		lMemStore = mad24(jj, ${N + numWorkItemsPerXForm}, ii);
+		lMemStore = mad24(jj, ${N + threads_per_xform}, ii);
 
 		%for i in range(maxRadix):
 			<%
@@ -430,14 +430,14 @@
 				k = i / numIter
 				ind = j * Nr + k
 			%>
-			sMem[lMemLoad + ${i * numWorkItemsPerXForm}] = a[${ind}].x;
+			sMem[lMemLoad + ${i * threads_per_xform}] = a[${ind}].x;
 		%endfor
 		__syncthreads();
 
 		%for i in range(numOuterIter):
 			%for j in range(numInnerIter):
 				a[${i*numInnerIter + j}].x = sMem[lMemStore + ${j * mem_coalesce_width + \
-					i * (groupSize / mem_coalesce_width) * (N + numWorkItemsPerXForm)}];
+					i * (block_size / mem_coalesce_width) * (N + threads_per_xform)}];
 			%endfor
 		%endfor
 		__syncthreads();
@@ -448,14 +448,14 @@
 				k = i / numIter
 				ind = j * Nr + k
 			%>
-			sMem[lMemLoad + ${i * numWorkItemsPerXForm}] = a[${ind}].y;
+			sMem[lMemLoad + ${i * threads_per_xform}] = a[${ind}].y;
 		%endfor
 		__syncthreads();
 
 		%for i in range(numOuterIter):
 			%for j in range(numInnerIter):
 				a[${i * numInnerIter + j}].y = sMem[lMemStore + ${j * mem_coalesce_width + \
-					i * (groupSize / mem_coalesce_width) * (N + numWorkItemsPerXForm)}];
+					i * (block_size / mem_coalesce_width) * (N + threads_per_xform)}];
 			%endfor
 		%endfor
 		__syncthreads();
@@ -467,11 +467,11 @@
 			{
 			%for j in range(numInnerIter):
 				${insertGlobalStore(i * numInnerIter + j, \
-					j * mem_coalesce_width + i * (groupSize / mem_coalesce_width) * N, split)}
+					j * mem_coalesce_width + i * (block_size / mem_coalesce_width) * N, split)}
 			%endfor
 			}
 			%if i != numOuterIter - 1:
-				jj += ${groupSize / mem_coalesce_width};
+				jj += ${block_size / mem_coalesce_width};
 			%endif
 		%endfor
 		}
@@ -480,15 +480,15 @@
 		%for i in range(numOuterIter):
 			%for j in range(numInnerIter):
 				${insertGlobalStore(i * numInnerIter + j, \
-					j * mem_coalesce_width + i * (groupSize / mem_coalesce_width) * N, split)}
+					j * mem_coalesce_width + i * (block_size / mem_coalesce_width) * N, split)}
 			%endfor
 		%endfor
 		}
 	%else:
-		lMemLoad = mad24(jj, ${N + numWorkItemsPerXForm}, ii);
+		lMemLoad = mad24(jj, ${N + threads_per_xform}, ii);
 		ii = lId & ${N - 1};
 		jj = lId >> ${log2(N)};
-		lMemStore = mad24(jj, ${N + numWorkItemsPerXForm}, ii);
+		lMemStore = mad24(jj, ${N + threads_per_xform}, ii);
 
 		%for i in range(maxRadix):
 			<%
@@ -496,12 +496,12 @@
 				k = i / numIter
 				ind = j * Nr + k
 			%>
-			sMem[lMemLoad + ${i * numWorkItemsPerXForm}] = a[${ind}].x;
+			sMem[lMemLoad + ${i * threads_per_xform}] = a[${ind}].x;
 		%endfor
 		__syncthreads();
 
 		%for i in range(maxRadix):
-			a[${i}].x = sMem[lMemStore + ${i * (groupSize / N) * (N + numWorkItemsPerXForm)}];
+			a[${i}].x = sMem[lMemStore + ${i * (block_size / N) * (N + threads_per_xform)}];
 		%endfor
 		__syncthreads();
 
@@ -511,12 +511,12 @@
 				k = i / numIter
 				ind = j * Nr + k
 			%>
-			sMem[lMemLoad + ${i * numWorkItemsPerXForm}] = a[${ind}].y;
+			sMem[lMemLoad + ${i * threads_per_xform}] = a[${ind}].y;
 		%endfor
 		__syncthreads();
 
 		%for i in range(maxRadix):
-			a[${i}].y = sMem[lMemStore + ${i * (groupSize / N) * (N + numWorkItemsPerXForm)}];
+			a[${i}].y = sMem[lMemStore + ${i * (block_size / N) * (N + threads_per_xform)}];
 		%endfor
 		__syncthreads();
 
@@ -525,17 +525,17 @@
 		%for i in range(maxRadix):
 			if(jj < s )
 			{
-				${insertGlobalStore(i, i * groupSize, split)}
+				${insertGlobalStore(i, i * block_size, split)}
 			}
 			%if i != maxRadix - 1:
-				jj += ${groupSize / N};
+				jj += ${block_size / N};
 			%endif
 		%endfor
 		}
 		else
 		{
 			%for i in range(maxRadix):
-				${insertGlobalStore(i, i * groupSize, split)}
+				${insertGlobalStore(i, i * block_size, split)}
 			%endfor
 		}
 	%endif
@@ -547,7 +547,7 @@
 	%endfor
 </%def>
 
-<%def name="insertTwiddleKernel(Nr, numIter, Nprev, len, numWorkItemsPerXForm, scalar)">
+<%def name="insertTwiddleKernel(Nr, numIter, Nprev, len, threads_per_xform, scalar)">
 
 	<% logNPrev = log2(Nprev) %>
 
@@ -560,10 +560,10 @@
 			%endif
 		%else:
 			%if Nprev > 1:
-				angf = (${scalar})((${z * numWorkItemsPerXForm} + ii) >> ${logNPrev});
+				angf = (${scalar})((${z * threads_per_xform} + ii) >> ${logNPrev});
 			%else:
 				## TODO: find out which conditions are necessary to execute this code
-				angf = (${scalar})(${z * numWorkItemsPerXForm} + ii);
+				angf = (${scalar})(${z * threads_per_xform} + ii);
 			%endif
 		%endif
 
@@ -577,27 +577,27 @@
 	%endfor
 </%def>
 
-<%def name="insertLocalStores(numIter, Nr, numWorkItemsPerXForm, numWorkItemsReq, offset, comp)">
+<%def name="insertLocalStores(numIter, Nr, threads_per_xform, numWorkItemsReq, offset, comp)">
 	%for z in range(numIter):
 		%for k in range(Nr):
-			<% index = k * (numWorkItemsReq + offset) + z * numWorkItemsPerXForm %>
+			<% index = k * (numWorkItemsReq + offset) + z * threads_per_xform %>
 			sMem[lMemStore + ${index}] = a[${z * Nr + k}].${comp};
 		%endfor
 	%endfor
 	__syncthreads();
 </%def>
 
-<%def name="insertLocalLoads(n, Nr, Nrn, Nprev, Ncurr, numWorkItemsPerXForm, numWorkItemsReq, offset, comp)">
+<%def name="insertLocalLoads(n, Nr, Nrn, Nprev, Ncurr, threads_per_xform, numWorkItemsReq, offset, comp)">
 	<%
 		numWorkItemsReqN = n / Nrn
-		interBlockHNum = max( Nprev / numWorkItemsPerXForm, 1 )
-		interBlockHStride = numWorkItemsPerXForm
-		vertWidth = max(numWorkItemsPerXForm / Nprev, 1)
+		interBlockHNum = max( Nprev / threads_per_xform, 1 )
+		interBlockHStride = threads_per_xform
+		vertWidth = max(threads_per_xform / Nprev, 1)
 		vertWidth = min( vertWidth, Nr)
 		vertNum = Nr / vertWidth
 		vertStride = ( n / Nr + offset ) * vertWidth
-		iter = max( numWorkItemsReqN / numWorkItemsPerXForm, 1)
-		intraBlockHStride = (numWorkItemsPerXForm / (Nprev*Nr)) if (numWorkItemsPerXForm / (Nprev*Nr)) > 1 else 1
+		iter = max( numWorkItemsReqN / threads_per_xform, 1)
+		intraBlockHStride = (threads_per_xform / (Nprev*Nr)) if (threads_per_xform / (Nprev*Nr)) > 1 else 1
 		intraBlockHStride *= Nprev
 
 		stride = numWorkItemsReq / Nrn
@@ -619,7 +619,7 @@
 	__syncthreads();
 </%def>
 
-<%def name="insertLocalLoadIndexArithmetic(Nprev, Nr, numWorkItemsReq, numWorkItemsPerXForm, numXFormsPerWG, offset, midPad)">
+<%def name="insertLocalLoadIndexArithmetic(Nprev, Nr, numWorkItemsReq, threads_per_xform, xforms_per_block, offset, midPad)">
 	<%
 		Ncurr = Nprev * Nr
 		logNcurr = log2(Ncurr)
@@ -627,7 +627,7 @@
 		incr = (numWorkItemsReq + offset) * Nr + midPad
 	%>
 
-	%if Ncurr < numWorkItemsPerXForm:
+	%if Ncurr < threads_per_xform:
 		%if Nprev == 1:
 			j = ii & ${Ncurr - 1};
 		%else:
@@ -653,22 +653,22 @@
 		%endif
 	%endif
 
-	%if numXFormsPerWG > 1:
+	%if xforms_per_block > 1:
 		i = mad24(jj, ${incr}, i);
 	%endif
 
 	lMemLoad = mad24(j, ${numWorkItemsReq + offset}, i);
 </%def>
 
-<%def name="insertLocalStoreIndexArithmatic(numWorkItemsReq, numXFormsPerWG, Nr, offset, midPad)">
-	%if numXFormsPerWG == 1:
+<%def name="insertLocalStoreIndexArithmatic(numWorkItemsReq, xforms_per_block, Nr, offset, midPad)">
+	%if xforms_per_block == 1:
 		lMemStore = ii;
 	%else:
 		lMemStore = mad24(jj, ${(numWorkItemsReq + offset) * Nr + midPad}, ii);
 	%endif
 </%def>
 
-<%def name="localKernel(scalar, complex, split, kernel_name, shared_mem, numWorkItemsPerXForm, numXFormsPerWG, \
+<%def name="localKernel(scalar, complex, split, kernel_name, shared_mem, threads_per_xform, xforms_per_block, \
 	min_mem_coalesce_width, N, n, num_local_mem_banks, log2, getPadding)">
 
 	<% max_radix = N[0] %>
@@ -700,7 +700,7 @@ extern "C" {
 		int lId = threadIdx.x;
 		int groupId = blockIdx.x;
 
-		${insertGlobalLoadsAndTranspose(n, numWorkItemsPerXForm, numXFormsPerWG, max_radix,
+		${insertGlobalLoadsAndTranspose(n, threads_per_xform, xforms_per_block, max_radix,
 			min_mem_coalesce_width, split)}
 
 		<%
@@ -719,17 +719,17 @@ extern "C" {
 		${insertfftKernel(N[r], numIter)}
 
 		%if r < numRadix - 1:
-			${insertTwiddleKernel(N[r], numIter, Nprev, len_, numWorkItemsPerXForm, scalar)}
+			${insertTwiddleKernel(N[r], numIter, Nprev, len_, threads_per_xform, scalar)}
 			<%
-				lMemSize, offset, midPad = getPadding(numWorkItemsPerXForm, Nprev, numWorkItemsReq,
-					numXFormsPerWG, N[r], num_local_mem_banks)
+				lMemSize, offset, midPad = getPadding(threads_per_xform, Nprev, numWorkItemsReq,
+					xforms_per_block, N[r], num_local_mem_banks)
 			%>
-			${insertLocalStoreIndexArithmatic(numWorkItemsReq, numXFormsPerWG, N[r], offset, midPad)}
-			${insertLocalLoadIndexArithmetic(Nprev, N[r], numWorkItemsReq, numWorkItemsPerXForm, numXFormsPerWG, offset, midPad)}
-			${insertLocalStores(numIter, N[r], numWorkItemsPerXForm, numWorkItemsReq, offset, "x")}
-			${insertLocalLoads(n, N[r], N[r+1], Nprev, Ncurr, numWorkItemsPerXForm, numWorkItemsReq, offset, "x")}
-			${insertLocalStores(numIter, N[r], numWorkItemsPerXForm, numWorkItemsReq, offset, "y")}
-			${insertLocalLoads(n, N[r], N[r+1], Nprev, Ncurr, numWorkItemsPerXForm, numWorkItemsReq, offset, "y")}
+			${insertLocalStoreIndexArithmatic(numWorkItemsReq, xforms_per_block, N[r], offset, midPad)}
+			${insertLocalLoadIndexArithmetic(Nprev, N[r], numWorkItemsReq, threads_per_xform, xforms_per_block, offset, midPad)}
+			${insertLocalStores(numIter, N[r], threads_per_xform, numWorkItemsReq, offset, "x")}
+			${insertLocalLoads(n, N[r], N[r+1], Nprev, Ncurr, threads_per_xform, numWorkItemsReq, offset, "x")}
+			${insertLocalStores(numIter, N[r], threads_per_xform, numWorkItemsReq, offset, "y")}
+			${insertLocalLoads(n, N[r], N[r+1], Nprev, Ncurr, threads_per_xform, numWorkItemsReq, offset, "y")}
 			<%
 				Nprev = Ncurr
 				len_ = len_ / N[r]
@@ -737,8 +737,8 @@ extern "C" {
 		%endif
 	%endfor
 
-	${insertGlobalStoresAndTranspose(n, max_radix, N[numRadix - 1], numWorkItemsPerXForm,
-		numXFormsPerWG, min_mem_coalesce_width, split)}
+	${insertGlobalStoresAndTranspose(n, max_radix, N[numRadix - 1], threads_per_xform,
+		xforms_per_block, min_mem_coalesce_width, split)}
 
 	}
 }
