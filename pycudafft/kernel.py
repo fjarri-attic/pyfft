@@ -60,7 +60,7 @@ def createLocalMemfftKernelString(plan, split):
 		threads_per_xform=threads_per_xform,
 		xforms_per_block=xforms_per_block,
 		min_mem_coalesce_width=plan.min_mem_coalesce_width,
-		N=radixArray,
+		radix_arr=radixArray,
 		n=n,
 		num_local_mem_banks=plan.num_local_mem_banks,
 		log2=log2,

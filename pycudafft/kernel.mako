@@ -498,7 +498,7 @@
 	%endfor
 </%def>
 
-<%def name="insertTwiddleKernel(radix, num_iter, radix_prev, len, threads_per_xform, scalar)">
+<%def name="insertTwiddleKernel(radix, num_iter, radix_prev, data_len, threads_per_xform, scalar)">
 
 	<% log2_radix_prev = log2(radix_prev) %>
 
@@ -520,7 +520,7 @@
 
 		%for k in range(1, radix):
 			<% ind = z * radix + k %>
-			ang = dir * ((${scalar})2 * M_PI * (${scalar})${k} / (${scalar})${len}) * angf;
+			ang = dir * ((${scalar})2 * M_PI * (${scalar})${k} / (${scalar})${data_len}) * angf;
 			## TODO: use native_cos and sin (as OpenCL implementation did)
 			w = complex_ctr(cos(ang), sin(ang));
 			a[${ind}] = a[${ind}] * w;
@@ -620,9 +620,9 @@
 </%def>
 
 <%def name="localKernel(scalar, complex, split, kernel_name, shared_mem, threads_per_xform, xforms_per_block, \
-	min_mem_coalesce_width, N, n, num_local_mem_banks, log2, getPadding)">
+	min_mem_coalesce_width, radix_arr, n, num_local_mem_banks, log2, getPadding)">
 
-	<% max_radix = N[0] %>
+	<% max_radix = radix_arr[0] %>
 
 ${insertBaseKernels(scalar, complex)}
 
@@ -656,39 +656,39 @@ extern "C" {
 
 		<%
 			radix_prev = 1
-			len_ = n
-			numRadix = len(N)
+			data_len = n
+			num_radix = len(radix_arr)
 		%>
 
-	%for r in range(numRadix):
+	%for r in range(num_radix):
 		<%
-			num_iter = N[0] / N[r]
-			threads_req = n / N[r]
-			radix_curr = radix_prev * N[r]
+			num_iter = radix_arr[0] / radix_arr[r]
+			threads_req = n / radix_arr[r]
+			radix_curr = radix_prev * radix_arr[r]
 		%>
 
-		${insertfftKernel(N[r], num_iter)}
+		${insertfftKernel(radix_arr[r], num_iter)}
 
-		%if r < numRadix - 1:
-			${insertTwiddleKernel(N[r], num_iter, radix_prev, len_, threads_per_xform, scalar)}
+		%if r < num_radix - 1:
+			${insertTwiddleKernel(radix_arr[r], num_iter, radix_prev, data_len, threads_per_xform, scalar)}
 			<%
 				lMemSize, offset, mid_pad = getPadding(threads_per_xform, radix_prev, threads_req,
-					xforms_per_block, N[r], num_local_mem_banks)
+					xforms_per_block, radix_arr[r], num_local_mem_banks)
 			%>
-			${insertLocalStoreIndexArithmatic(threads_req, xforms_per_block, N[r], offset, mid_pad)}
-			${insertLocalLoadIndexArithmetic(radix_prev, N[r], threads_req, threads_per_xform, xforms_per_block, offset, mid_pad)}
+			${insertLocalStoreIndexArithmatic(threads_req, xforms_per_block, radix_arr[r], offset, mid_pad)}
+			${insertLocalLoadIndexArithmetic(radix_prev, radix_arr[r], threads_req, threads_per_xform, xforms_per_block, offset, mid_pad)}
 			%for comp in ('x', 'y'):
-				${insertLocalStores(num_iter, N[r], threads_per_xform, threads_req, offset, comp)}
-				${insertLocalLoads(n, N[r], N[r+1], radix_prev, radix_curr, threads_per_xform, threads_req, offset, comp)}
+				${insertLocalStores(num_iter, radix_arr[r], threads_per_xform, threads_req, offset, comp)}
+				${insertLocalLoads(n, radix_arr[r], radix_arr[r+1], radix_prev, radix_curr, threads_per_xform, threads_req, offset, comp)}
 			%endfor
 			<%
 				radix_prev = radix_curr
-				len_ = len_ / N[r]
+				data_len = data_len / radix_arr[r]
 			%>
 		%endif
 	%endfor
 
-	${insertGlobalStoresAndTranspose(n, max_radix, N[numRadix - 1], threads_per_xform,
+	${insertGlobalStoresAndTranspose(n, max_radix, radix_arr[num_radix - 1], threads_per_xform,
 		xforms_per_block, min_mem_coalesce_width, split)}
 
 	}
@@ -798,9 +798,9 @@ extern "C" {
 		%if split:
 			in_real += index_in;
 			in_imag += index_in;
-			%for comp in ('x', 'y'):
+			%for comp, part in (('x', 'real'), ('y', 'imag')):
 				%for j in range(R1):
-					a[${j}].${comp} = in_real[${j * gInInc * strideI}];
+					a[${j}].${comp} = in_${part}[${j * gInInc * strideI}];
 				%endfor
 			%endfor
 		%else:
@@ -884,9 +884,9 @@ extern "C" {
 				out_real += index_out;
 				out_imag += index_out;
 
-				%for comp in ('x', 'y'):
+				%for comp, part in (('x', 'real'), ('y', 'imag')):
 					%for k in range(R1):
-						out_real[${k * threadsPerBlock}] = a[${k}].${comp};
+						out_${part}[${k * threadsPerBlock}] = a[${k}].${comp};
 					%endfor
 				%endfor
 			%else:
@@ -900,9 +900,9 @@ extern "C" {
 			%if split:
 				out_real += index_out;
 				out_imag += index_out;
-				%for comp in ('x', 'y'):
+				%for comp, part in (('x', 'real'), ('y', 'imag')):
 					%for k in range(R1):
-						out_real[${((k % R2) * R1 + (k / R2)) * strideO}] = a[${k}].${comp};
+						out_${part}[${((k % R2) * R1 + (k / R2)) * strideO}] = a[${k}].${comp};
 					%endfor
 				%endfor
 			%else:
