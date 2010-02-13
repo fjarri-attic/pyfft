@@ -696,43 +696,43 @@ extern "C" {
 
 </%def>
 
-<%def name="globalKernel(scalar, complex, split, passNum, kernel_name, radixArr, numPasses, shared_mem, R1Arr, \
-	R2Arr, Rinit, batchSize, BS, vertBS, vertical, maxThreadsPerBlock, max_work_item_per_workgroup, n, N, log2, getPadding)">
+<%def name="globalKernel(scalar, complex, split, pass_num, kernel_name, radix_arr, num_passes, shared_mem, R1Arr, \
+	R2Arr, Rinit, batch_size, BS, vertBS, vertical, max_block_size, n, N, log2, getPadding)">
 
 ${insertBaseKernels(scalar, complex)}
 
 extern "C" {
 	<%
-		radix = radixArr[passNum]
-		R1 = R1Arr[passNum]
-		R2 = R2Arr[passNum]
+		radix = radix_arr[pass_num]
+		R1 = R1Arr[pass_num]
+		R2 = R2Arr[pass_num]
 
 		strideI = Rinit
-		for i in range(numPasses):
-			if i != passNum:
-				strideI *= radixArr[i]
+		for i in range(num_passes):
+			if i != pass_num:
+				strideI *= radix_arr[i]
 
 		strideO = Rinit
-		for i in range(passNum):
-			strideO *= radixArr[i]
+		for i in range(pass_num):
+			strideO *= radix_arr[i]
 
-		threadsPerXForm = R2
-		threadsPerBlock = batchSize * threadsPerXForm
-		threadsPerBlock = min(threadsPerBlock, maxThreadsPerBlock)
+		threads_per_xform = R2
+		block_size = batch_size * threads_per_xform
+		block_size = min(block_size, max_block_size)
 
 		num_iter = R1 / R2
-		gInInc = threadsPerBlock / batchSize
+		gInInc = block_size / batch_size
 		lgStrideO = log2(strideO)
-		numBlocksPerXForm = strideI / batchSize
-		numBlocks = numBlocksPerXForm
+		blocks_per_xform = strideI / batch_size
+		num_blocks = blocks_per_xform
 		if not vertical:
-			numBlocks *= BS
+			num_blocks *= BS
 		else:
-			numBlocks *= vertBS
+			num_blocks *= vertBS
 
 		m = log2(n)
 	%>
-	// ${strideI} ${batchSize} ${passNum} ${str(radixArr)}
+
 %if split:
 	__global__ void ${kernel_name}(${scalar} *in_real, ${scalar} *in_imag, ${scalar} *out_real, ${scalar} *out_imag, int dir, int S)
 %else:
@@ -757,31 +757,31 @@ extern "C" {
 		int block_id = blockIdx.x + blockIdx.y * gridDim.x;
 
 		%if vertical:
-			x_num = block_id >> ${log2(numBlocksPerXForm)};
-			block_id = block_id & ${numBlocksPerXForm - 1};
-			index_in = mad24(block_id, ${batchSize}, x_num << ${log2(n * BS)});
-			tid = mul24(block_id, ${batchSize});
+			x_num = block_id >> ${log2(blocks_per_xform)};
+			block_id = block_id & ${blocks_per_xform - 1};
+			index_in = mad24(block_id, ${batch_size}, x_num << ${log2(n * BS)});
+			tid = mul24(block_id, ${batch_size});
 			i = tid >> ${lgStrideO};
 			j = tid & ${strideO - 1};
 			<%
 				stride = radix * Rinit
-				for i in range(passNum):
-					stride *= radixArr[i]
+				for i in range(pass_num):
+					stride *= radix_arr[i]
 			%>
 			index_out = mad24(i, ${stride}, j + (x_num << ${log2(n*BS)}));
 			b_num = block_id;
 		%else:
-			<% lgNumBlocksPerXForm = log2(numBlocksPerXForm) %>
-			b_num = block_id & ${numBlocksPerXForm - 1};
+			<% lgNumBlocksPerXForm = log2(blocks_per_xform) %>
+			b_num = block_id & ${blocks_per_xform - 1};
 			x_num = block_id >> ${lgNumBlocksPerXForm};
-			index_in = mul24(b_num, ${batchSize});
+			index_in = mul24(b_num, ${batch_size});
 			tid = index_in;
 			i = tid >> ${lgStrideO};
 			j = tid & ${strideO - 1};
 			<%
 				stride = radix*Rinit
-				for i in range(passNum):
-					stride *= radixArr[i]
+				for i in range(pass_num):
+					stride *= radix_arr[i]
 			%>
 			index_out = mad24(i, ${stride}, j);
 			index_in += (x_num << ${m});
@@ -789,9 +789,9 @@ extern "C" {
 		%endif
 
 		## Load Data
-		<% lgBatchSize = log2(batchSize) %>
+		<% lgBatchSize = log2(batch_size) %>
 		tid = thread_id;
-		i = tid & ${batchSize - 1};
+		i = tid & ${batch_size - 1};
 		j = tid >> ${lgBatchSize};
 		index_in += mad24(j, ${strideI}, i);
 
@@ -823,19 +823,19 @@ extern "C" {
 
 			## shuffle
 			<% num_iter = R1 / R2 %>
-			index_in = mad24(j, ${threadsPerBlock * num_iter}, i);
+			index_in = mad24(j, ${block_size * num_iter}, i);
 			smem_store_index = tid;
 			smem_load_index = index_in;
 
 			%for comp in ('x', 'y'):
 				%for k in range(R1):
-					smem[smem_store_index + ${k * threadsPerBlock}] = a[${k}].${comp};
+					smem[smem_store_index + ${k * block_size}] = a[${k}].${comp};
 				%endfor
 				__syncthreads();
 
 				%for k in range(num_iter):
 					%for t in range(R2):
-						a[${k * R2 + t}].${comp} = smem[smem_load_index + ${t * batchSize + k * threadsPerBlock}];
+						a[${k * R2 + t}].${comp} = smem[smem_load_index + ${t * batch_size + k * block_size}];
 					%endfor
 				%endfor
 				__syncthreads();
@@ -847,7 +847,7 @@ extern "C" {
 		%endif
 
 		## twiddle
-		%if passNum < numPasses - 1:
+		%if pass_num < num_passes - 1:
 			l = ((b_num << ${lgBatchSize}) + i) >> ${lgStrideO};
 			k = j << ${log2(R1 / R2)};
 			ang1 = dir * ((${scalar})2 * M_PI / ${N}) * l;
@@ -873,7 +873,7 @@ extern "C" {
 				__syncthreads();
 
 				%for i in range(R1):
-					a[${i}].${comp} = smem[smem_load_index + ${i * (radix + 1) * (threadsPerBlock / radix)}];
+					a[${i}].${comp} = smem[smem_load_index + ${i * (radix + 1) * (block_size / radix)}];
 				%endfor
 				__syncthreads();
 			%endfor
@@ -886,13 +886,13 @@ extern "C" {
 
 				%for comp, part in (('x', 'real'), ('y', 'imag')):
 					%for k in range(R1):
-						out_${part}[${k * threadsPerBlock}] = a[${k}].${comp};
+						out_${part}[${k * block_size}] = a[${k}].${comp};
 					%endfor
 				%endfor
 			%else:
 				out += index_out;
 				%for k in range(R1):
-					out[${k * threadsPerBlock}] = a[${k}];
+					out[${k * block_size}] = a[${k}];
 				%endfor
 			%endif
 		%else:

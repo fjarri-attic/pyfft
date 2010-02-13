@@ -26,12 +26,12 @@ def createLocalMemfftKernelString(plan, split):
 	n = plan.n.x
 	assert n <= plan.max_work_item_per_workgroup * plan.max_radix, "signal lenght too big for local mem fft"
 
-	radixArray = getRadixArray(n, 0)
-	if n / radixArray[0] > plan.max_work_item_per_workgroup:
-		radixArray = getRadixArray(n, plan.max_radix)
+	radix_array = getRadixArray(n, 0)
+	if n / radix_array[0] > plan.max_work_item_per_workgroup:
+		radix_array = getRadixArray(n, plan.max_radix)
 
-	assert radixArray[0] <= plan.max_radix, "max radix choosen is greater than allowed"
-	assert n / radixArray[0] <= plan.max_work_item_per_workgroup, \
+	assert radix_array[0] <= plan.max_radix, "max radix choosen is greater than allowed"
+	assert n / radix_array[0] <= plan.max_work_item_per_workgroup, \
 		"required work items per xform greater than maximum work items allowed per work group for local mem fft"
 
 	kInfo = cl_fft_kernel_info()
@@ -41,14 +41,14 @@ def createLocalMemfftKernelString(plan, split):
 	kInfo.in_place_possible = True
 	kInfo.kernel_name = "fft"
 
-	threads_per_xform = n / radixArray[0]
+	threads_per_xform = n / radix_array[0]
 	numWorkItemsPerWG = 64 if threads_per_xform <= 64 else threads_per_xform
 	assert numWorkItemsPerWG <= plan.max_work_item_per_workgroup
 	xforms_per_block = numWorkItemsPerWG / threads_per_xform
 	kInfo.num_workgroups = xforms_per_block
 	kInfo.num_workitems_per_workgroup = numWorkItemsPerWG
 
-	kInfo.lmem_size = getSharedMemorySize(n, radixArray, threads_per_xform, xforms_per_block,
+	kInfo.lmem_size = getSharedMemorySize(n, radix_array, threads_per_xform, xforms_per_block,
 		plan.num_local_mem_banks, plan.min_mem_coalesce_width)
 
 	kInfo.kernel_string = _template.get_def("localKernel").render(
@@ -60,7 +60,7 @@ def createLocalMemfftKernelString(plan, split):
 		threads_per_xform=threads_per_xform,
 		xforms_per_block=xforms_per_block,
 		min_mem_coalesce_width=plan.min_mem_coalesce_width,
-		radix_arr=radixArray,
+		radix_arr=radix_array,
 		n=n,
 		num_local_mem_banks=plan.num_local_mem_banks,
 		log2=log2,
@@ -70,50 +70,50 @@ def createLocalMemfftKernelString(plan, split):
 
 def createGlobalFFTKernelString(plan, n, BS, dir, vertBS, split):
 
-	maxThreadsPerBlock = plan.max_work_item_per_workgroup
+	max_block_size = plan.max_work_item_per_workgroup
 	maxArrayLen = plan.max_radix
-	batchSize = plan.min_mem_coalesce_width
+	batch_size = plan.min_mem_coalesce_width
 	vertical = False if dir == X_DIRECTION else True
 
-	radixArr, R1Arr, R2Arr = getGlobalRadixInfo(n)
+	radix_arr, R1Arr, R2Arr = getGlobalRadixInfo(n)
 
-	numPasses = len(radixArr)
+	num_passes = len(radix_arr)
 
 	N = n
 	Rinit = BS if vertical else 1
-	batchSize = min(BS, batchSize) if vertical else batchSize
+	batch_size = min(BS, batch_size) if vertical else batch_size
 
 	kernels = []
 
-	for passNum in range(numPasses):
+	for pass_num in range(num_passes):
 
-		radix = radixArr[passNum]
-		R1 = R1Arr[passNum]
-		R2 = R2Arr[passNum]
+		radix = radix_arr[pass_num]
+		R1 = R1Arr[pass_num]
+		R2 = R2Arr[pass_num]
 
 		strideI = Rinit
-		for i in range(numPasses):
-			if i != passNum:
-				strideI *= radixArr[i]
+		for i in range(num_passes):
+			if i != pass_num:
+				strideI *= radix_arr[i]
 
 		strideO = Rinit
-		for i in range(passNum):
-			strideO *= radixArr[i]
+		for i in range(pass_num):
+			strideO *= radix_arr[i]
 
 		threadsPerXForm = R2
-		batchSize = plan.max_work_item_per_workgroup if R2 == 1 else batchSize
-		batchSize = min(batchSize, strideI)
-		threadsPerBlock = batchSize * threadsPerXForm
-		threadsPerBlock = min(threadsPerBlock, maxThreadsPerBlock)
-		batchSize = threadsPerBlock / threadsPerXForm
+		batch_size = plan.max_work_item_per_workgroup if R2 == 1 else batch_size
+		batch_size = min(batch_size, strideI)
+		block_size = batch_size * threadsPerXForm
+		block_size = min(block_size, max_block_size)
+		batch_size = block_size / threadsPerXForm
 		assert R2 <= R1
 		assert R1*R2 == radix
 		assert R1 <= maxArrayLen
-		assert threadsPerBlock <= maxThreadsPerBlock
+		assert block_size <= max_block_size
 
 		numIter = R1 / R2
 
-		numBlocksPerXForm = strideI / batchSize
+		numBlocksPerXForm = strideI / batch_size
 		numBlocks = numBlocksPerXForm
 		if not vertical:
 			numBlocks *= BS
@@ -127,14 +127,14 @@ def createGlobalFFTKernelString(plan, n, BS, dir, vertBS, split):
 			kInfo.lmem_size = 0
 		else:
 			if strideO == 1:
-				kInfo.lmem_size = (radix + 1) * batchSize
+				kInfo.lmem_size = (radix + 1) * batch_size
 			else:
-				kInfo.lmem_size = threadsPerBlock * R1
+				kInfo.lmem_size = block_size * R1
 
 		kInfo.num_workgroups = numBlocks
-		kInfo.num_workitems_per_workgroup = threadsPerBlock
+		kInfo.num_workitems_per_workgroup = block_size
 		kInfo.dir = dir
-		if passNum == numPasses - 1 and numPasses % 2 == 1:
+		if pass_num == num_passes - 1 and num_passes % 2 == 1:
 			kInfo.in_place_possible = True
 		else:
 			kInfo.in_place_possible = False
@@ -144,20 +144,19 @@ def createGlobalFFTKernelString(plan, n, BS, dir, vertBS, split):
 		kInfo.kernel_string = _template.get_def("globalKernel").render(
 			scalar="float", complex="float2",
 			split=split,
-			passNum=passNum,
+			pass_num=pass_num,
 			kernel_name=kernelName,
-			radixArr=radixArr,
-			numPasses=numPasses,
+			radix_arr=radix_arr,
+			num_passes=num_passes,
 			shared_mem=kInfo.lmem_size,
 			R1Arr=R1Arr,
 			R2Arr=R2Arr,
 			Rinit=Rinit,
-			batchSize=batchSize,
+			batch_size=batch_size,
 			BS=BS,
 			vertBS=vertBS,
 			vertical=vertical,
-			maxThreadsPerBlock=maxThreadsPerBlock,
-			max_work_item_per_workgroup=plan.max_work_item_per_workgroup,
+			max_block_size=max_block_size,
 			n=n,
 			N=N,
 			log2=log2,
@@ -178,12 +177,12 @@ def FFT1D(plan, dir):
 		if plan.n.x > plan.max_localmem_fft_size:
 			kernels.extend(createGlobalFFTKernelString(plan, plan.n.x, 1, X_DIRECTION, 1, plan.split))
 		elif plan.n.x > 1:
-			radixArray = getRadixArray(plan.n.x, 0)
-			if plan.n.x / radixArray[0] <= plan.max_work_item_per_workgroup:
+			radix_array = getRadixArray(plan.n.x, 0)
+			if plan.n.x / radix_array[0] <= plan.max_work_item_per_workgroup:
 				kernels.append(createLocalMemfftKernelString(plan, plan.split))
 			else:
-				radixArray = getRadixArray(plan.n.x, plan.max_radix)
-				if plan.n.x / radixArray[0] <= plan.max_work_item_per_workgroup:
+				radix_array = getRadixArray(plan.n.x, plan.max_radix)
+				if plan.n.x / radix_array[0] <= plan.max_work_item_per_workgroup:
 					kernels.append(createLocalMemfftKernelString(plan, plan.split))
 				else:
 					# TODO: find out which conditions are necessary to execute this code
