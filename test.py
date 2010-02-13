@@ -120,7 +120,7 @@ def testPerformance(x, y=None, z=None):
 
 	start.record()
 	for i in xrange(iterations):
-		plan.execute(a_gpu.gpudata, b_gpu.gpudata, batch=batch)
+		plan.execute(a_gpu, b_gpu, batch=batch)
 	stop.record()
 	stop.synchronize()
 	t_pycudafft = stop.time_since(start) / 1000.0 / iterations # in seconds
@@ -188,21 +188,21 @@ def testErrors(x, y, z, batch, split):
 	if split:
 		a_gpu_re.set(data_re)
 		a_gpu_im.set(data_im)
-		plan.executeSplit(a_gpu_re.gpudata, a_gpu_im.gpudata,
-			b_gpu_re.gpudata, b_gpu_im.gpudata, batch=batch)
+		plan.executeSplit(a_gpu_re, a_gpu_im,
+			b_gpu_re, b_gpu_im, batch=batch)
 		pyfft_fw_outplace = b_gpu_re.get() + 1j * b_gpu_im.get()
 	else:
 		a_gpu.set(data)
-		plan.execute(a_gpu.gpudata, b_gpu.gpudata, batch=batch)
+		plan.execute(a_gpu, b_gpu, batch=batch)
 		pyfft_fw_outplace = b_gpu.get()
 
 	# out of place inverse
 	if split:
-		plan.executeSplit(b_gpu_re.gpudata, b_gpu_im.gpudata,
-			a_gpu_re.gpudata, a_gpu_im.gpudata, batch=batch, inverse=True)
+		plan.executeSplit(b_gpu_re, b_gpu_im,
+			a_gpu_re, a_gpu_im, batch=batch, inverse=True)
 		pyfft_res_outplace = (a_gpu_re.get() + 1j * a_gpu_im.get()) / size
 	else:
-		plan.execute(b_gpu.gpudata, a_gpu.gpudata, batch=batch, inverse=True)
+		plan.execute(b_gpu, a_gpu, batch=batch, inverse=True)
 		pyfft_res_outplace = a_gpu.get() / size
 
 	pycudafft_err_outplace = difference(pyfft_res_outplace, data, batch)
@@ -211,19 +211,19 @@ def testErrors(x, y, z, batch, split):
 	if split:
 		a_gpu_re.set(data_re)
 		a_gpu_im.set(data_im)
-		plan.executeSplit(a_gpu_re.gpudata, a_gpu_im.gpudata, batch=batch)
+		plan.executeSplit(a_gpu_re, a_gpu_im, batch=batch)
 		pyfft_fw_inplace = a_gpu_re.get() + 1j * a_gpu_im.get()
 	else:
 		a_gpu.set(data)
-		plan.execute(a_gpu.gpudata, batch=batch)
+		plan.execute(a_gpu, batch=batch)
 		pyfft_fw_inplace = a_gpu.get()
 
 	# inplace inverse
 	if split:
-		plan.executeSplit(a_gpu_re.gpudata, a_gpu_im.gpudata, batch=batch, inverse=True)
+		plan.executeSplit(a_gpu_re, a_gpu_im, batch=batch, inverse=True)
 		pyfft_res_inplace = (a_gpu_re.get() + 1j * a_gpu_im.get()) / size
 	else:
-		plan.execute(a_gpu.gpudata, batch=batch, inverse=True)
+		plan.execute(a_gpu, batch=batch, inverse=True)
 		pyfft_res_inplace = a_gpu.get() / size
 
 	pycudafft_err_inplace = difference(pyfft_res_inplace, data, batch)
@@ -252,7 +252,6 @@ def runErrorTests():
 			print "failed: " + str([x, y, z]) + ", batch " + str(batch) + \
 				", " + ("split" if split else "interleaved") + \
 				": " + str(e)
-			raise
 
 	for split in [False, True]:
 		for batch in [1, 16, 128, 1024, 4096]:

@@ -1,6 +1,7 @@
 from pycuda.autoinit import device
 from pycuda.compiler import SourceModule
 from pycuda.driver import device_attribute
+from pycuda.gpuarray import GPUArray
 import pycuda.driver as cuda
 
 from kernel import *
@@ -118,7 +119,15 @@ class FFTPlan:
 		inPlaceDone = 0
 		if data_out is None:
 			data_out = data_in
-		isInPlace = (data_in == data_out)
+			isInPlace = True
+		else:
+			isInPlace = False
+
+		if isinstance(data_in, GPUArray):
+			data_in = data_in.gpudata
+
+		if isinstance(data_out, GPUArray):
+			data_out = data_out.gpudata
 
 		dir = 1 if inverse else -1
 
@@ -183,7 +192,21 @@ class FFTPlan:
 		if data_out_re is None and data_out_im is None:
 			data_out_re = data_in_re
 			data_out_im = data_in_im
-		isInPlace = (data_in_re == data_out_re and data_in_im == data_out_im)
+			isInPlace = True
+		else:
+			isInPlace = False
+
+		if isinstance(data_in_re, GPUArray):
+			data_in_re = data_in_re.gpudata
+
+		if isinstance(data_in_im, GPUArray):
+			data_in_im = data_in_im.gpudata
+
+		if isinstance(data_out_re, GPUArray):
+			data_out_re = data_out_re.gpudata
+
+		if isinstance(data_out_im, GPUArray):
+			data_out_im = data_out_im.gpudata
 
 		dir = 1 if inverse else -1
 
