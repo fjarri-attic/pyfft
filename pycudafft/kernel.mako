@@ -1,7 +1,7 @@
-<%def name="baseKernels(scalar, complex)">
+<%def name="insertBaseKernels(scalar, complex)">
 
 	#ifndef M_PI
-	#define M_PI 0x1.921fb54442d18p+1
+	#define M_PI ((${scalar})0x1.921fb54442d18p+1)
 	#endif
 
 	#define complex_ctr(x, y) make_${complex}(x, y)
@@ -81,8 +81,8 @@
 
 	#define fftKernel8(a, dir) \
 	{ \
-		const ${complex} w1  = complex_ctr(0x1.6a09e6p-1f,  dir*0x1.6a09e6p-1f); \
-		const ${complex} w3  = complex_ctr(-0x1.6a09e6p-1f, dir*0x1.6a09e6p-1f); \
+		const ${complex} w1  = complex_ctr((${scalar})0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir); \
+		const ${complex} w3  = complex_ctr((${scalar})-0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir); \
 		fftKernel2S((a)[0], (a)[4], dir); \
 		fftKernel2S((a)[1], (a)[5], dir); \
 		fftKernel2S((a)[2], (a)[6], dir); \
@@ -116,22 +116,22 @@
 
 	#define fftKernel16(a, dir) \
 	{ \
-		const ${scalar} w0 = 0x1.d906bcp-1f; \
-		const ${scalar} w1 = 0x1.87de2ap-2f; \
-		const ${scalar} w2 = 0x1.6a09e6p-1f; \
+		const ${scalar} w0 = (${scalar})0x1.d906bcp-1; \
+		const ${scalar} w1 = (${scalar})0x1.87de2ap-2; \
+		const ${scalar} w2 = (${scalar})0x1.6a09e6p-1; \
 		fftKernel4s((a)[0], (a)[4], (a)[8],  (a)[12], dir); \
 		fftKernel4s((a)[1], (a)[5], (a)[9],  (a)[13], dir); \
 		fftKernel4s((a)[2], (a)[6], (a)[10], (a)[14], dir); \
 		fftKernel4s((a)[3], (a)[7], (a)[11], (a)[15], dir); \
-		(a)[5]  = (a)[5] * complex_ctr(w0, dir*w1); \
-		(a)[6]  = (a)[6] * complex_ctr(w2, dir*w2); \
-		(a)[7]  = (a)[7] * complex_ctr(w1, dir*w0); \
-		(a)[9]  = (a)[9] * complex_ctr(w2, dir*w2); \
+		(a)[5]  = (a)[5] * complex_ctr(w0, dir * w1); \
+		(a)[6]  = (a)[6] * complex_ctr(w2, dir * w2); \
+		(a)[7]  = (a)[7] * complex_ctr(w1, dir * w0); \
+		(a)[9]  = (a)[9] * complex_ctr(w2, dir * w2); \
 		(a)[10] = complex_ctr(dir, 0)*(conjTransp((a)[10])); \
-		(a)[11] = (a)[11] * complex_ctr(-w2, dir*w2); \
-		(a)[13] = (a)[13] * complex_ctr(w1, dir*w0); \
-		(a)[14] = (a)[14] * complex_ctr(-w2, dir*w2); \
-		(a)[15] = (a)[15] * complex_ctr(-w0, dir*-w1); \
+		(a)[11] = (a)[11] * complex_ctr(-w2, dir * w2); \
+		(a)[13] = (a)[13] * complex_ctr(w1, dir * w0); \
+		(a)[14] = (a)[14] * complex_ctr(-w2, dir * w2); \
+		(a)[15] = (a)[15] * complex_ctr(-w0, -dir * w1); \
 		fftKernel4((a), dir); \
 		fftKernel4((a) + 4, dir); \
 		fftKernel4((a) + 8, dir); \
@@ -174,28 +174,28 @@
 		fftKernel2S((a)[13], (a)[29], dir); \
 		fftKernel2S((a)[14], (a)[30], dir); \
 		fftKernel2S((a)[15], (a)[31], dir); \
-		(a)[17] = (a)[17] * complex_ctr(0x1.f6297cp-1f, dir*0x1.8f8b84p-3f); \
-		(a)[18] = (a)[18] * complex_ctr(0x1.d906bcp-1f, dir*0x1.87de2ap-2f); \
-		(a)[19] = (a)[19] * complex_ctr(0x1.a9b662p-1f, dir*0x1.1c73b4p-1f); \
-		(a)[20] = (a)[20] * complex_ctr(0x1.6a09e6p-1f, dir*0x1.6a09e6p-1f); \
-		(a)[21] = (a)[21] * complex_ctr(0x1.1c73b4p-1f, dir*0x1.a9b662p-1f); \
-		(a)[22] = (a)[22] * complex_ctr(0x1.87de2ap-2f, dir*0x1.d906bcp-1f); \
-		(a)[23] = (a)[23] * complex_ctr(0x1.8f8b84p-3f, dir*0x1.f6297cp-1f); \
-		(a)[24] = (a)[24] * complex_ctr(0x0p+0f, dir*0x1p+0f); \
-		(a)[25] = (a)[25] * complex_ctr(-0x1.8f8b84p-3f, dir*0x1.f6297cp-1f); \
-		(a)[26] = (a)[26] * complex_ctr(-0x1.87de2ap-2f, dir*0x1.d906bcp-1f); \
-		(a)[27] = (a)[27] * complex_ctr(-0x1.1c73b4p-1f, dir*0x1.a9b662p-1f); \
-		(a)[28] = (a)[28] * complex_ctr(-0x1.6a09e6p-1f, dir*0x1.6a09e6p-1f); \
-		(a)[29] = (a)[29] * complex_ctr(-0x1.a9b662p-1f, dir*0x1.1c73b4p-1f); \
-		(a)[30] = (a)[30] * complex_ctr(-0x1.d906bcp-1f, dir*0x1.87de2ap-2f); \
-		(a)[31] = (a)[31] * complex_ctr(-0x1.f6297cp-1f, dir*0x1.8f8b84p-3f); \
+		(a)[17] = (a)[17] * complex_ctr((${scalar})0x1.f6297cp-1, (${scalar})0x1.8f8b84p-3 * dir); \
+		(a)[18] = (a)[18] * complex_ctr((${scalar})0x1.d906bcp-1, (${scalar})0x1.87de2ap-2 * dir); \
+		(a)[19] = (a)[19] * complex_ctr((${scalar})0x1.a9b662p-1, (${scalar})0x1.1c73b4p-1 * dir); \
+		(a)[20] = (a)[20] * complex_ctr((${scalar})0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir); \
+		(a)[21] = (a)[21] * complex_ctr((${scalar})0x1.1c73b4p-1, (${scalar})0x1.a9b662p-1 * dir); \
+		(a)[22] = (a)[22] * complex_ctr((${scalar})0x1.87de2ap-2, (${scalar})0x1.d906bcp-1 * dir); \
+		(a)[23] = (a)[23] * complex_ctr((${scalar})0x1.8f8b84p-3, (${scalar})0x1.f6297cp-1 * dir); \
+		(a)[24] = (a)[24] * complex_ctr((${scalar})0x0p+0, (${scalar})0x1p+0 * dir); \
+		(a)[25] = (a)[25] * complex_ctr((${scalar})-0x1.8f8b84p-3, (${scalar})0x1.f6297cp-1 * dir); \
+		(a)[26] = (a)[26] * complex_ctr((${scalar})-0x1.87de2ap-2, (${scalar})0x1.d906bcp-1 * dir); \
+		(a)[27] = (a)[27] * complex_ctr((${scalar})-0x1.1c73b4p-1, (${scalar})0x1.a9b662p-1 * dir); \
+		(a)[28] = (a)[28] * complex_ctr((${scalar})-0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir); \
+		(a)[29] = (a)[29] * complex_ctr((${scalar})-0x1.a9b662p-1, (${scalar})0x1.1c73b4p-1 * dir); \
+		(a)[30] = (a)[30] * complex_ctr((${scalar})-0x1.d906bcp-1, (${scalar})0x1.87de2ap-2 * dir); \
+		(a)[31] = (a)[31] * complex_ctr((${scalar})-0x1.f6297cp-1, (${scalar})0x1.8f8b84p-3 * dir); \
 		fftKernel16((a), dir); \
 		fftKernel16((a) + 16, dir); \
 		bitreverse32((a)); \
 	}
 </%def>
 
-<%def name="shiftGlobalBuffers(split)">
+<%def name="insertGlobalBuffersShift(split)">
 	%if split:
 		in_real += offset;
 		in_imag += offset;
@@ -208,7 +208,7 @@
 </%def>
 
 
-<%def name="formattedLoad(a_index, g_index, split)">
+<%def name="insertGlobalLoad(a_index, g_index, split)">
 	%if split:
 		a[${a_index}].x = in_real[${g_index}];
 		a[${a_index}].y = in_imag[${g_index}];
@@ -217,7 +217,7 @@
 	%endif
 </%def>
 
-<%def name="formattedStore(a_index, g_index, split)">
+<%def name="insertGlobalStore(a_index, g_index, split)">
 	%if split:
 		out_real[${g_index}] = a[${a_index}].x;
 		out_imag[${g_index}] = a[${a_index}].y;
@@ -245,20 +245,20 @@
 			if(!s || (groupId < gridDim.x - 1) || (jj < s))
 			{
 				offset = mad24(mad24(groupId, ${numXFormsPerWG}, jj), ${N}, ii);
-				${shiftGlobalBuffers(split)}
+				${insertGlobalBuffersShift(split)}
 
 			%for i in range(R0):
-				${formattedLoad(i, i * numWorkItemsPerXForm, split)}
+				${insertGlobalLoad(i, i * numWorkItemsPerXForm, split)}
 			%endfor
 			}
 		%else:
 			ii = lId;
 			jj = 0;
 			offset = mad24(groupId, ${N}, ii);
-			${shiftGlobalBuffers(split)}
+			${insertGlobalBuffersShift(split)}
 
 			%for i in range(R0):
-				${formattedLoad(i, i * numWorkItemsPerXForm, split)}
+				${insertGlobalLoad(i, i * numWorkItemsPerXForm, split)}
 			%endfor
 		%endif
 
@@ -273,7 +273,7 @@
 		lMemStore = mad24(jj, ${N + numWorkItemsPerXForm}, ii);
 		offset = mad24(groupId, ${numXFormsPerWG}, jj);
 		offset = mad24(offset, ${N}, ii);
-		${shiftGlobalBuffers(split)}
+		${insertGlobalBuffersShift(split)}
 
 		if((groupId == gridDim.x - 1) && s)
 		{
@@ -281,7 +281,7 @@
 			if(jj < s)
 			{
 			%for j in range(numInnerIter):
-				${formattedLoad(i * numInnerIter + j, \
+				${insertGlobalLoad(i * numInnerIter + j, \
 					j * mem_coalesce_width + i * ( groupSize / mem_coalesce_width ) * N, split)}
 			%endfor
 			}
@@ -294,7 +294,7 @@
 		{
 		%for i in range(numOuterIter):
 			%for j in range(numInnerIter):
-				${formattedLoad(i * numInnerIter + j, \
+				${insertGlobalLoad(i * numInnerIter + j, \
 					j * mem_coalesce_width + i * ( groupSize / mem_coalesce_width ) * N, split)}
 			%endfor
 		%endfor
@@ -333,7 +333,7 @@
 		__syncthreads();
 	%else:
 		offset = mad24(groupId, ${N * numXFormsPerWG}, lId);
-		${shiftGlobalBuffers(split)}
+		${insertGlobalBuffersShift(split)}
 
 		ii = lId & ${N - 1};
 		jj = lId >> ${log2(N)};
@@ -343,7 +343,7 @@
 		{
 		%for i in range(R0):
 			if(jj < s)
-				${formattedLoad(i, i * groupSize, split)}
+				${insertGlobalLoad(i, i * groupSize, split)}
 			%if i != R0 - 1:
 				jj += ${groupSize / N};
 			%endif
@@ -352,7 +352,7 @@
 		else
 		{
 		%for i in range(R0):
-			${formattedLoad(i, i*groupSize, split)}
+			${insertGlobalLoad(i, i*groupSize, split)}
 		%endfor
 		}
 
@@ -407,7 +407,7 @@
 				k = i / numIter
 				ind = j * Nr + k
 			%>
-			${formattedStore(ind, i * numWorkItemsPerXForm, split)}
+			${insertGlobalStore(ind, i * numWorkItemsPerXForm, split)}
 		%endfor
 
 		%if numXFormsPerWG > 1:
@@ -466,7 +466,7 @@
 			if(jj < s)
 			{
 			%for j in range(numInnerIter):
-				${formattedStore(i * numInnerIter + j, \
+				${insertGlobalStore(i * numInnerIter + j, \
 					j * mem_coalesce_width + i * (groupSize / mem_coalesce_width) * N, split)}
 			%endfor
 			}
@@ -479,7 +479,7 @@
 		{
 		%for i in range(numOuterIter):
 			%for j in range(numInnerIter):
-				${formattedStore(i * numInnerIter + j, \
+				${insertGlobalStore(i * numInnerIter + j, \
 					j * mem_coalesce_width + i * (groupSize / mem_coalesce_width) * N, split)}
 			%endfor
 		%endfor
@@ -525,7 +525,7 @@
 		%for i in range(maxRadix):
 			if(jj < s )
 			{
-				${formattedStore(i, i * groupSize, split)}
+				${insertGlobalStore(i, i * groupSize, split)}
 			}
 			%if i != maxRadix - 1:
 				jj += ${groupSize / N};
@@ -535,7 +535,7 @@
 		else
 		{
 			%for i in range(maxRadix):
-				${formattedStore(i, i * groupSize, split)}
+				${insertGlobalStore(i, i * groupSize, split)}
 			%endfor
 		}
 	%endif
@@ -619,7 +619,7 @@
 	__syncthreads();
 </%def>
 
-<%def name="insertLocalLoadIndexArithmatic(Nprev, Nr, numWorkItemsReq, numWorkItemsPerXForm, numXFormsPerWG, offset, midPad)">
+<%def name="insertLocalLoadIndexArithmetic(Nprev, Nr, numWorkItemsReq, numWorkItemsPerXForm, numXFormsPerWG, offset, midPad)">
 	<%
 		Ncurr = Nprev * Nr
 		logNcurr = log2(Ncurr)
@@ -673,7 +673,7 @@
 
 	<% max_radix = N[0] %>
 
-${baseKernels(scalar, complex)}
+${insertBaseKernels(scalar, complex)}
 
 extern "C" {
 
@@ -725,7 +725,7 @@ extern "C" {
 					numXFormsPerWG, N[r], num_local_mem_banks)
 			%>
 			${insertLocalStoreIndexArithmatic(numWorkItemsReq, numXFormsPerWG, N[r], offset, midPad)}
-			${insertLocalLoadIndexArithmatic(Nprev, N[r], numWorkItemsReq, numWorkItemsPerXForm, numXFormsPerWG, offset, midPad)}
+			${insertLocalLoadIndexArithmetic(Nprev, N[r], numWorkItemsReq, numWorkItemsPerXForm, numXFormsPerWG, offset, midPad)}
 			${insertLocalStores(numIter, N[r], numWorkItemsPerXForm, numWorkItemsReq, offset, "x")}
 			${insertLocalLoads(n, N[r], N[r+1], Nprev, Ncurr, numWorkItemsPerXForm, numWorkItemsReq, offset, "x")}
 			${insertLocalStores(numIter, N[r], numWorkItemsPerXForm, numWorkItemsReq, offset, "y")}
@@ -748,7 +748,7 @@ extern "C" {
 <%def name="globalKernel(scalar, complex, split, passNum, kernel_name, radixArr, numPasses, shared_mem, R1Arr, \
 	R2Arr, Rinit, batchSize, BS, vertBS, vertical, maxThreadsPerBlock, max_work_item_per_workgroup, n, N, log2, getPadding)">
 
-${baseKernels(scalar, complex)}
+${insertBaseKernels(scalar, complex)}
 
 extern "C" {
 	<%
