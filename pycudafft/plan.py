@@ -53,9 +53,9 @@ class FFTPlan:
 		done = False
 		while not done:
 			self.kernels = []
-			self.getBlockConfigAndKernelString()
+			self._generateKernelCode()
 			try:
-				self.compileKernels()
+				self._compileKernels()
 			except:
 				if self.max_work_item_per_workgroup > 1:
 					self.max_work_item_per_workgroup /= 2
@@ -63,7 +63,7 @@ class FFTPlan:
 				raise Exception("Cannot meet number of registers/shared memory requirements")
 			done = True
 
-	def compileKernels(self):
+	def _compileKernels(self):
 		shared_mem_limit = device.get_attribute(device_attribute.MAX_SHARED_MEMORY_PER_BLOCK)
 		reg_limit = device.get_attribute(device_attribute.MAX_REGISTERS_PER_BLOCK)
 
@@ -75,7 +75,7 @@ class FFTPlan:
 			if kInfo.function_ref.num_regs * kInfo.num_workitems_per_workgroup > reg_limit:
 				raise Exception("Insufficient registers")
 
-	def getBlockConfigAndKernelString(self):
+	def _generateKernelCode(self):
 
 		if self.dim == _FFT_1D:
 			self.kernels.extend(FFT1D(self, X_DIRECTION))
@@ -92,7 +92,7 @@ class FFTPlan:
 			if not kInfo.in_place_possible:
 				self.temp_buffer_needed = True
 
-	def getKernelWorkDimensions(self, kernelInfo, batch):
+	def _getKernelWorkDimensions(self, kernelInfo, batch):
 
 		lWorkItems = kernelInfo.num_workitems_per_workgroup
 		numWorkGroups = kernelInfo.num_workgroups
@@ -160,7 +160,7 @@ class FFTPlan:
 					inPlaceDone = True
 
 				s = batch
-				s, gWorkItems, lWorkItems = self.getKernelWorkDimensions(kInfo, s)
+				s, gWorkItems, lWorkItems = self._getKernelWorkDimensions(kInfo, s)
 
 				func = kInfo.function_ref
 				# TODO: prepare functions when creating the plan
@@ -176,7 +176,7 @@ class FFTPlan:
 			for kInfo in self.kernels:
 
 				s = batch
-				s, gWorkItems, lWorkItems = self.getKernelWorkDimensions(kInfo, s)
+				s, gWorkItems, lWorkItems = self._getKernelWorkDimensions(kInfo, s)
 
 				func = kInfo.function_ref
 				# TODO: prepare functions when creating the plan
@@ -241,7 +241,7 @@ class FFTPlan:
 					inPlaceDone = True
 
 				s = batch
-				s, gWorkItems, lWorkItems = self.getKernelWorkDimensions(kInfo, s)
+				s, gWorkItems, lWorkItems = self._getKernelWorkDimensions(kInfo, s)
 
 				func = kInfo.function_ref
 				# TODO: prepare functions when creating the plan
@@ -258,7 +258,7 @@ class FFTPlan:
 			for kInfo in self.kernels:
 
 				s = batch
-				s, gWorkItems, lWorkItems = self.getKernelWorkDimensions(kInfo, s)
+				s, gWorkItems, lWorkItems = self._getKernelWorkDimensions(kInfo, s)
 
 				func = kInfo.function_ref
 				# TODO: prepare functions when creating the plan
