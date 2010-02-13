@@ -304,33 +304,21 @@
 		jj = thread_id >> ${log2_threads_per_xform};
 		smem_load_index = mad24(jj, ${n + threads_per_xform}, ii);
 
-		%for i in range(num_outer_iter):
-			%for j in range(num_inner_iter):
-				smem[smem_store_index + ${j * mem_coalesce_width + \
-					i * (block_size / mem_coalesce_width) * (n + threads_per_xform)}] =
-					a[${i * num_inner_iter + j}].x;
+		%for comp in ('x', 'y'):
+			%for i in range(num_outer_iter):
+				%for j in range(num_inner_iter):
+					smem[smem_store_index + ${j * mem_coalesce_width + \
+						i * (block_size / mem_coalesce_width) * (n + threads_per_xform)}] =
+						a[${i * num_inner_iter + j}].${comp};
+				%endfor
 			%endfor
-		%endfor
-		__syncthreads();
+			__syncthreads();
 
-		%for i in range(radix):
-			a[${i}].x = smem[smem_load_index + ${i * threads_per_xform}];
-		%endfor
-		__syncthreads();
-
-		%for i in range(num_outer_iter):
-			%for j in range(num_inner_iter):
-				smem[smem_store_index + ${j * mem_coalesce_width + \
-					i * (block_size / mem_coalesce_width) * (n + threads_per_xform)}] =
-					a[${i * num_inner_iter + j}].y;
+			%for i in range(radix):
+				a[${i}].${comp} = smem[smem_load_index + ${i * threads_per_xform}];
 			%endfor
+			__syncthreads();
 		%endfor
-		__syncthreads();
-
-		%for i in range(radix):
-			a[${i}].y = smem[smem_load_index + ${i * threads_per_xform}];
-		%endfor
-		__syncthreads();
 	%else:
 		offset = mad24(block_id, ${n * xforms_per_block}, thread_id);
 		${insertGlobalBuffersShift(split)}
@@ -416,41 +404,25 @@
 		jj = thread_id >> ${log2(mem_coalesce_width)};
 		smem_store_index = mad24(jj, ${n + threads_per_xform}, ii);
 
-		%for i in range(max_radix):
-			<%
-				j = i % num_iter
-				k = i / num_iter
-				ind = j * radix + k
-			%>
-			smem[smem_load_index + ${i * threads_per_xform}] = a[${ind}].x;
-		%endfor
-		__syncthreads();
-
-		%for i in range(num_outer_iter):
-			%for j in range(num_inner_iter):
-				a[${i*num_inner_iter + j}].x = smem[smem_store_index + ${j * mem_coalesce_width + \
-					i * (block_size / mem_coalesce_width) * (n + threads_per_xform)}];
+		%for comp in ('x', 'y'):
+			%for i in range(max_radix):
+				<%
+					j = i % num_iter
+					k = i / num_iter
+					ind = j * radix + k
+				%>
+				smem[smem_load_index + ${i * threads_per_xform}] = a[${ind}].${comp};
 			%endfor
-		%endfor
-		__syncthreads();
+			__syncthreads();
 
-		%for i in range(max_radix):
-			<%
-				j = i % num_iter
-				k = i / num_iter
-				ind = j * radix + k
-			%>
-			smem[smem_load_index + ${i * threads_per_xform}] = a[${ind}].y;
-		%endfor
-		__syncthreads();
-
-		%for i in range(num_outer_iter):
-			%for j in range(num_inner_iter):
-				a[${i * num_inner_iter + j}].y = smem[smem_store_index + ${j * mem_coalesce_width + \
-					i * (block_size / mem_coalesce_width) * (n + threads_per_xform)}];
+			%for i in range(num_outer_iter):
+				%for j in range(num_inner_iter):
+					a[${i*num_inner_iter + j}].${comp} = smem[smem_store_index + ${j * mem_coalesce_width + \
+						i * (block_size / mem_coalesce_width) * (n + threads_per_xform)}];
+				%endfor
 			%endfor
+			__syncthreads();
 		%endfor
-		__syncthreads();
 
 		if((block_id == gridDim.x - 1) && s)
 		{
@@ -482,35 +454,22 @@
 		jj = thread_id >> ${log2(n)};
 		smem_store_index = mad24(jj, ${n + threads_per_xform}, ii);
 
-		%for i in range(max_radix):
-			<%
-				j = i % num_iter
-				k = i / num_iter
-				ind = j * radix + k
-			%>
-			smem[smem_load_index + ${i * threads_per_xform}] = a[${ind}].x;
-		%endfor
-		__syncthreads();
+		%for comp in ('x', 'y'):
+			%for i in range(max_radix):
+				<%
+					j = i % num_iter
+					k = i / num_iter
+					ind = j * radix + k
+				%>
+				smem[smem_load_index + ${i * threads_per_xform}] = a[${ind}].${comp};
+			%endfor
+			__syncthreads();
 
-		%for i in range(max_radix):
-			a[${i}].x = smem[smem_store_index + ${i * (block_size / n) * (n + threads_per_xform)}];
+			%for i in range(max_radix):
+				a[${i}].${comp} = smem[smem_store_index + ${i * (block_size / n) * (n + threads_per_xform)}];
+			%endfor
+			__syncthreads();
 		%endfor
-		__syncthreads();
-
-		%for i in range(max_radix):
-			<%
-				j = i % num_iter
-				k = i / num_iter
-				ind = j * radix + k
-			%>
-			smem[smem_load_index + ${i * threads_per_xform}] = a[${ind}].y;
-		%endfor
-		__syncthreads();
-
-		%for i in range(max_radix):
-			a[${i}].y = smem[smem_store_index + ${i * (block_size / n) * (n + threads_per_xform)}];
-		%endfor
-		__syncthreads();
 
 		if((block_id == gridDim.x - 1) && s)
 		{
@@ -582,41 +541,41 @@
 <%def name="insertLocalLoads(n, radix, radix_next, radix_prev, radix_curr, threads_per_xform, threads_req, offset, comp)">
 	<%
 		threads_req_next = n / radix_next
-		interBlockHNum = max(radix_prev / threads_per_xform, 1)
-		interBlockHStride = threads_per_xform
-		vertWidth = max(threads_per_xform / radix_prev, 1)
-		vertWidth = min(vertWidth, radix)
-		vertNum = radix / vertWidth
-		vertStride = (n / radix + offset) * vertWidth
+		inter_block_hnum = max(radix_prev / threads_per_xform, 1)
+		inter_block_hstride = threads_per_xform
+		vert_width = max(threads_per_xform / radix_prev, 1)
+		vert_width = min(vert_width, radix)
+		vert_num = radix / vert_width
+		vert_stride = (n / radix + offset) * vert_width
 		iter = max(threads_req_next / threads_per_xform, 1)
-		intraBlockHStride = (threads_per_xform / (radix_prev*radix)) if (threads_per_xform / (radix_prev*radix)) > 1 else 1
-		intraBlockHStride *= radix_prev
+		intra_block_hstride = max(threads_per_xform / (radix_prev * radix), 1)
+		intra_block_hstride *= radix_prev
 
 		stride = threads_req / radix_next
 	%>
 
 	%for i in range(iter):
 		<%
-			ii = i / (interBlockHNum * vertNum)
-			zz = i % (interBlockHNum * vertNum)
-			jj = zz % interBlockHNum
-			kk = zz / interBlockHNum
+			ii = i / (inter_block_hnum * vert_num)
+			zz = i % (inter_block_hnum * vert_num)
+			jj = zz % inter_block_hnum
+			kk = zz / inter_block_hnum
 		%>
 
 		%for z in range(radix_next):
-			<% st = kk * vertStride + jj * interBlockHStride + ii * intraBlockHStride + z * stride %>
+			<% st = kk * vert_stride + jj * inter_block_hstride + ii * intra_block_hstride + z * stride %>
 			a[${i * radix_next + z}].${comp} = smem[smem_load_index + ${st}];
 		%endfor
 	%endfor
 	__syncthreads();
 </%def>
 
-<%def name="insertLocalLoadIndexArithmetic(radix_prev, radix, threads_req, threads_per_xform, xforms_per_block, offset, midPad)">
+<%def name="insertLocalLoadIndexArithmetic(radix_prev, radix, threads_req, threads_per_xform, xforms_per_block, offset, mid_pad)">
 	<%
 		radix_curr = radix_prev * radix
 		log2_radix_curr = log2(radix_curr)
 		log2_radix_prev = log2(radix_prev)
-		incr = (threads_req + offset) * radix + midPad
+		incr = (threads_req + offset) * radix + mid_pad
 	%>
 
 	%if radix_curr < threads_per_xform:
@@ -652,11 +611,11 @@
 	smem_load_index = mad24(j, ${threads_req + offset}, i);
 </%def>
 
-<%def name="insertLocalStoreIndexArithmatic(threads_req, xforms_per_block, radix, offset, midPad)">
+<%def name="insertLocalStoreIndexArithmatic(threads_req, xforms_per_block, radix, offset, mid_pad)">
 	%if xforms_per_block == 1:
 		smem_store_index = ii;
 	%else:
-		smem_store_index = mad24(jj, ${(threads_req + offset) * radix + midPad}, ii);
+		smem_store_index = mad24(jj, ${(threads_req + offset) * radix + mid_pad}, ii);
 	%endif
 </%def>
 
@@ -713,15 +672,15 @@ extern "C" {
 		%if r < numRadix - 1:
 			${insertTwiddleKernel(N[r], num_iter, radix_prev, len_, threads_per_xform, scalar)}
 			<%
-				lMemSize, offset, midPad = getPadding(threads_per_xform, radix_prev, threads_req,
+				lMemSize, offset, mid_pad = getPadding(threads_per_xform, radix_prev, threads_req,
 					xforms_per_block, N[r], num_local_mem_banks)
 			%>
-			${insertLocalStoreIndexArithmatic(threads_req, xforms_per_block, N[r], offset, midPad)}
-			${insertLocalLoadIndexArithmetic(radix_prev, N[r], threads_req, threads_per_xform, xforms_per_block, offset, midPad)}
-			${insertLocalStores(num_iter, N[r], threads_per_xform, threads_req, offset, "x")}
-			${insertLocalLoads(n, N[r], N[r+1], radix_prev, radix_curr, threads_per_xform, threads_req, offset, "x")}
-			${insertLocalStores(num_iter, N[r], threads_per_xform, threads_req, offset, "y")}
-			${insertLocalLoads(n, N[r], N[r+1], radix_prev, radix_curr, threads_per_xform, threads_req, offset, "y")}
+			${insertLocalStoreIndexArithmatic(threads_req, xforms_per_block, N[r], offset, mid_pad)}
+			${insertLocalLoadIndexArithmetic(radix_prev, N[r], threads_req, threads_per_xform, xforms_per_block, offset, mid_pad)}
+			%for comp in ('x', 'y'):
+				${insertLocalStores(num_iter, N[r], threads_per_xform, threads_req, offset, comp)}
+				${insertLocalLoads(n, N[r], N[r+1], radix_prev, radix_curr, threads_per_xform, threads_req, offset, comp)}
+			%endfor
 			<%
 				radix_prev = radix_curr
 				len_ = len_ / N[r]
@@ -839,11 +798,10 @@ extern "C" {
 		%if split:
 			in_real += index_in;
 			in_imag += index_in;
-			%for j in range(R1):
-				a[${j}].x = in_real[${j * gInInc * strideI}];
-			%endfor
-			%for j in range(R1):
-				a[${j}].y = in_imag[${j * gInInc * strideI}];
+			%for comp in ('x', 'y'):
+				%for j in range(R1):
+					a[${j}].${comp} = in_real[${j * gInInc * strideI}];
+				%endfor
 			%endfor
 		%else:
 			in += index_in;
@@ -869,29 +827,19 @@ extern "C" {
 			smem_store_index = tid;
 			smem_load_index = index_in;
 
-			%for k in range(R1):
-				smem[smem_store_index + ${k * threadsPerBlock}] = a[${k}].x;
-			%endfor
-			__syncthreads();
-
-			%for k in range(num_iter):
-				%for t in range(R2):
-					a[${k * R2 + t}].x = smem[smem_load_index + ${t * batchSize + k * threadsPerBlock}];
+			%for comp in ('x', 'y'):
+				%for k in range(R1):
+					smem[smem_store_index + ${k * threadsPerBlock}] = a[${k}].${comp};
 				%endfor
-			%endfor
-			__syncthreads();
+				__syncthreads();
 
-			%for k in range(R1):
-				smem[smem_store_index + ${k * threadsPerBlock}] = a[${k}].y;
-			%endfor
-			__syncthreads();
-
-			%for k in range(num_iter):
-				%for t in range(R2):
-					a[${k * R2 + t}].y = smem[smem_load_index + ${t * batchSize + k * threadsPerBlock}];
+				%for k in range(num_iter):
+					%for t in range(R2):
+						a[${k * R2 + t}].${comp} = smem[smem_load_index + ${t * batchSize + k * threadsPerBlock}];
+					%endfor
 				%endfor
+				__syncthreads();
 			%endfor
-			__syncthreads();
 
 			%for j in range(num_iter):
 				fftKernel${R2}(a + ${j * R2}, dir);
@@ -916,40 +864,30 @@ extern "C" {
 			smem_store_index = mad24(i, ${radix + 1}, j << ${log2(R1 / R2)});
 			smem_load_index = mad24(tid >> ${log2(radix)}, ${radix + 1}, tid & ${radix - 1});
 
-			%for i in range(R1 / R2):
-				%for j in range(R2):
-					smem[smem_store_index + ${i + j*R1}] = a[${i * R2 + j}].x;
+			%for comp in ('x', 'y'):
+				%for i in range(R1 / R2):
+					%for j in range(R2):
+						smem[smem_store_index + ${i + j * R1}] = a[${i * R2 + j}].${comp};
+					%endfor
 				%endfor
-			%endfor
-			__syncthreads();
+				__syncthreads();
 
-			%for i in range(R1):
-				a[${i}].x = smem[smem_load_index + ${i * (radix + 1) * (threadsPerBlock / radix)}];
-			%endfor
-			__syncthreads();
-
-			%for i in range(R1/R2):
-				%for j in range(R2):
-					smem[smem_store_index + ${i + j*R1}] = a[${i * R2 + j}].y;
+				%for i in range(R1):
+					a[${i}].${comp} = smem[smem_load_index + ${i * (radix + 1) * (threadsPerBlock / radix)}];
 				%endfor
+				__syncthreads();
 			%endfor
-			__syncthreads();
-
-			%for i in range(R1):
-				a[${i}].y = smem[smem_load_index + ${i * (radix + 1) * (threadsPerBlock / radix)}];
-			%endfor
-			__syncthreads();
 
 			index_out += tid;
 
 			%if split:
 				out_real += index_out;
 				out_imag += index_out;
-				%for k in range(R1):
-					out_real[${k * threadsPerBlock}] = a[${k}].x;
-				%endfor
-				%for k in range(R1):
-					out_imag[${k * threadsPerBlock}] = a[${k}].y;
+
+				%for comp in ('x', 'y'):
+					%for k in range(R1):
+						out_real[${k * threadsPerBlock}] = a[${k}].${comp};
+					%endfor
 				%endfor
 			%else:
 				out += index_out;
@@ -962,11 +900,10 @@ extern "C" {
 			%if split:
 				out_real += index_out;
 				out_imag += index_out;
-				%for k in range(R1):
-					out_real[${((k % R2) * R1 + (k / R2)) * strideO}] = a[${k}].x;
-				%endfor
-				%for k in range(R1):
-					out_imag[${((k % R2) * R1 + (k / R2)) * strideO}] = a[${k}].y;
+				%for comp in ('x', 'y'):
+					%for k in range(R1):
+						out_real[${((k % R2) * R1 + (k / R2)) * strideO}] = a[${k}].${comp};
+					%endfor
 				%endfor
 			%else:
 				out += index_out;
