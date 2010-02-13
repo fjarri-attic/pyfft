@@ -1,6 +1,5 @@
 from fft_internal import *
-from fft_kernelstring import *
-from fft_base_kernels import *
+from kernel import *
 from clFFT import *
 from pycuda.autoinit import device
 from pycuda.compiler import SourceModule
