@@ -9,6 +9,10 @@ from cufft.pycuda_fft import *
 import time
 import math
 
+FFT_1D = 0
+FFT_2D = 1
+FFT_3D = 2
+
 MAX_BUFFER_SIZE = 16 # in megabytes
 
 def log2(n):
@@ -51,11 +55,11 @@ def difference(arr1, arr2, batch):
 def numpy_fft_base(data, dim, len, batch, func):
 	res = []
 	for i in range(batch):
-		if dim == clFFT_1D:
+		if dim == FFT_1D:
 			part = data[i*len : (i+1)*len]
-		elif dim == clFFT_2D:
+		elif dim == FFT_2D:
 			part = data[:, i*len : (i+1)*len]
-		elif dim == clFFT_3D:
+		elif dim == FFT_3D:
 			part = data[:, :, i*len : (i+1)*len]
 
 		x = func(part)
@@ -66,21 +70,21 @@ def numpy_fft_base(data, dim, len, batch, func):
 def getDim(x, y, z):
 	if z == 1:
 		if y == 1:
-			return clFFT_1D
+			return FFT_1D
 		else:
-			return clFFT_2D
+			return FFT_2D
 	else:
-		return clFFT_3D
+		return FFT_3D
 
-def getTestData(dim, x, y, z, batch, data_format):
-	if dim == clFFT_1D:
+def getTestData(dim, x, y, z, batch, split):
+	if dim == FFT_1D:
 		dims = (x * batch,)
-	elif dim == clFFT_2D:
+	elif dim == FFT_2D:
 		dims = (x, y * batch)
-	elif dim == clFFT_3D:
+	elif dim == FFT_3D:
 		dims = (x, y, z * batch)
 
-	if data_format == clFFT_SplitComplexFormat:
+	if split:
 		return rand_real(*dims), rand_real(*dims)
 	else:
 		return rand_complex(*dims)
@@ -98,22 +102,22 @@ def testPerformance(x, y, z):
 		return
 
 	dim = getDim(x, y, z)
-	data = getTestData(dim, x, y, z, batch, clFFT_InterleavedComplexFormat)
+	data = getTestData(dim, x, y, z, batch, split)
 
 	a_gpu = gpuarray.to_gpu(data)
 	b_gpu = gpuarray.GPUArray(data.shape, dtype=data.dtype)
 
-	plan = FFTPlan(x, y, z, dim, clFFT_InterleavedComplexFormat)
+	plan = FFTPlan(x, y, z)
 
 	start = cuda.Event()
 	stop = cuda.Event()
 
 	start.record()
 	for i in xrange(iterations):
-		clFFT_ExecuteInterleaved(plan, batch, clFFT_Forward, a_gpu.gpudata, b_gpu.gpudata)
+		plan.execute(a_gpu.gpudata, b_gpu.gpudata, batch=batch)
 	stop.record()
 	stop.synchronize()
-	t = stop.time_since(start) / 1000.0 / iterations # in seconds
+	t_pycudafft = stop.time_since(start) / 1000.0 / iterations # in seconds
 
 	cufft_plan = CUFFTPlan(x, y, z, batch)
 	start.record()
@@ -126,10 +130,10 @@ def testPerformance(x, y, z):
 	gflop = 5.0e-9 * (log2(x) + log2(y) + log2(z)) * x * y * z * batch
 
 	print "* pycudafft performance: " + str([x, y, z]) + ", batch " + str(batch) + ": " + \
-		str(t * 1000) + " ms, " + str(gflop / t) + " GFLOPS"
+		str(t_pycudafft * 1000) + " ms, " + str(gflop / t_pycudafft) + " GFLOPS"
 	print "cufft: " + str(t_cufft * 1000) + " ms, " + str(gflop / t_cufft) + " GFLOPS"
 
-def testErrors(x, y, z, batch, data_format):
+def testErrors(x, y, z, batch, split):
 
 	buf_size_bytes = MAX_BUFFER_SIZE * 1024 * 1024
 	value_size = 8 # size of complex value, hardcoded (float, float)
@@ -142,11 +146,11 @@ def testErrors(x, y, z, batch, data_format):
 
 	dim = getDim(x, y, z)
 
-	if data_format == clFFT_SplitComplexFormat:
-		data_re, data_im = getTestData(dim, x, y, z, batch, data_format)
+	if split:
+		data_re, data_im = getTestData(dim, x, y, z, batch, split)
 		data = (data_re + 1j * data_im).astype(numpy.complex64)
 	else:
-		data = getTestData(dim, x, y, z, batch, data_format)
+		data = getTestData(dim, x, y, z, batch, split)
 
 	# Prepare arrays
 	a_gpu = gpuarray.to_gpu(data)
@@ -165,7 +169,7 @@ def testErrors(x, y, z, batch, data_format):
 
 	# relese some GPU memory; this will help low-end videocards
 	del cufft_plan
-	if data_format == clFFT_SplitComplexFormat:
+	if split:
 		del a_gpu
 		del b_gpu
 		a_gpu_re = gpuarray.to_gpu(data_re)
@@ -175,51 +179,49 @@ def testErrors(x, y, z, batch, data_format):
 
 	# pycudafft tests
 
-	plan = FFTPlan(x, y, z, dim, data_format)
+	plan = FFTPlan(x, y, z, split=split)
 
 	# out of place forward
-	if data_format == clFFT_InterleavedComplexFormat:
-		a_gpu.set(data)
-		clFFT_ExecuteInterleaved(plan, batch, clFFT_Forward, a_gpu.gpudata, b_gpu.gpudata)
-		pyfft_fw_outplace = b_gpu.get()
-	else:
+	if split:
 		a_gpu_re.set(data_re)
 		a_gpu_im.set(data_im)
-		clFFT_ExecutePlanar(plan, batch, clFFT_Forward, a_gpu_re.gpudata, a_gpu_im.gpudata,
-			b_gpu_re.gpudata, b_gpu_im.gpudata)
+		plan.executeSplit(a_gpu_re.gpudata, a_gpu_im.gpudata,
+			b_gpu_re.gpudata, b_gpu_im.gpudata, batch=batch)
 		pyfft_fw_outplace = b_gpu_re.get() + 1j * b_gpu_im.get()
+	else:
+		a_gpu.set(data)
+		plan.execute(a_gpu.gpudata, b_gpu.gpudata, batch=batch)
+		pyfft_fw_outplace = b_gpu.get()
 
 	# out of place inverse
-	if data_format == clFFT_InterleavedComplexFormat:
-		clFFT_ExecuteInterleaved(plan, batch, clFFT_Inverse, b_gpu.gpudata, a_gpu.gpudata)
-		pyfft_res_outplace = a_gpu.get() / (x * y * z)
-	else:
-		clFFT_ExecutePlanar(plan, batch, clFFT_Inverse, b_gpu_re.gpudata, b_gpu_im.gpudata,
-			a_gpu_re.gpudata, a_gpu_im.gpudata)
+	if split:
+		plan.executeSplit(b_gpu_re.gpudata, b_gpu_im.gpudata,
+			a_gpu_re.gpudata, a_gpu_im.gpudata, batch=batch, inverse=True)
 		pyfft_res_outplace = (a_gpu_re.get() + 1j * a_gpu_im.get()) / (x * y * z)
+	else:
+		plan.execute(b_gpu.gpudata, a_gpu.gpudata, batch=batch, inverse=True)
+		pyfft_res_outplace = a_gpu.get() / (x * y * z)
 
 	pycudafft_err_outplace = difference(pyfft_res_outplace, data, batch)
 
 	# inplace forward
-	if data_format == clFFT_InterleavedComplexFormat:
-		a_gpu.set(data)
-		clFFT_ExecuteInterleaved(plan, batch, clFFT_Forward, a_gpu.gpudata, a_gpu.gpudata)
-		pyfft_fw_inplace = a_gpu.get()
-	else:
+	if split:
 		a_gpu_re.set(data_re)
 		a_gpu_im.set(data_im)
-		clFFT_ExecutePlanar(plan, batch, clFFT_Forward, a_gpu_re.gpudata, a_gpu_im.gpudata,
-			a_gpu_re.gpudata, a_gpu_im.gpudata)
+		plan.executeSplit(a_gpu_re.gpudata, a_gpu_im.gpudata, batch=batch)
 		pyfft_fw_inplace = a_gpu_re.get() + 1j * a_gpu_im.get()
+	else:
+		a_gpu.set(data)
+		plan.execute(a_gpu.gpudata, batch=batch)
+		pyfft_fw_inplace = a_gpu.get()
 
 	# inplace inverse
-	if data_format == clFFT_InterleavedComplexFormat:
-		clFFT_ExecuteInterleaved(plan, batch, clFFT_Inverse, a_gpu.gpudata, a_gpu.gpudata)
-		pyfft_res_inplace = a_gpu.get() / (x * y * z)
-	else:
-		clFFT_ExecutePlanar(plan, batch, clFFT_Inverse, a_gpu_re.gpudata, a_gpu_im.gpudata,
-			a_gpu_re.gpudata, a_gpu_im.gpudata)
+	if split:
+		plan.executeSplit(a_gpu_re.gpudata, a_gpu_im.gpudata, batch=batch, inverse=True)
 		pyfft_res_inplace = (a_gpu_re.get() + 1j * a_gpu_im.get()) / (x * y * z)
+	else:
+		plan.execute(a_gpu.gpudata, batch=batch, inverse=True)
+		pyfft_res_inplace = a_gpu.get() / (x * y * z)
 
 	pycudafft_err_inplace = difference(pyfft_res_inplace, data, batch)
 
@@ -240,35 +242,35 @@ def testErrors(x, y, z, batch, data_format):
 
 def runErrorTests():
 
-	def wrapper(x, y, z, batch, data_format):
+	def wrapper(x, y, z, batch, split):
 		try:
-			testErrors(x, y, z, batch, data_format)
+			testErrors(x, y, z, batch, split)
 		except Exception, e:
 			print "failed: " + str([x, y, z]) + ", batch " + str(batch) + \
-				", " + ("split" if data_format == clFFT_SplitComplexFormat else "interleaved") + \
+				", " + ("split" if split else "interleaved") + \
 				": " + str(e)
 
-	for data_format in [clFFT_InterleavedComplexFormat, clFFT_SplitComplexFormat]:
+	for split in [False, True]:
 		for batch in [1, 16, 128, 1024, 4096]:
 
 			# 1D
 			for x in [3, 8, 9, 10, 13]:
-				wrapper(2 ** x, 1, 1, batch, data_format)
+				wrapper(2 ** x, 1, 1, batch, split)
 
 			# 2D
 			for x in [4, 7, 8, 10]:
 				for y in [4, 7, 8, 10]:
-					wrapper(2 ** x, 2 ** y, 1, batch, data_format)
+					wrapper(2 ** x, 2 ** y, 1, batch, split)
 
 			# 3D
 			for x in [4, 7, 10]:
 				for y in [4, 7, 10]:
 					for z in [4, 7, 10]:
-						wrapper(2 ** x, 2 ** y, 2 ** z, batch, data_format)
+						wrapper(2 ** x, 2 ** y, 2 ** z, batch, split)
 
 	# these tests currently do not work, added to achieve 100% coverage
-	wrapper(2048, 1, 1, 1, clFFT_InterleavedComplexFormat)
-	wrapper(16, 1, 1, 1, clFFT_InterleavedComplexFormat) # while plan.mem_coalesce_with = 32
+	wrapper(2048, 1, 1, 1, False)
+	wrapper(16, 1, 1, 1, False) # while plan.mem_coalesce_with = 32
 
 def runPerformanceTests():
 	testPerformance(16, 1, 1)

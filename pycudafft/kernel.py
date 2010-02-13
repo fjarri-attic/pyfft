@@ -2,8 +2,10 @@ import os.path
 
 from mako.template import Template
 from kernel_helpers import *
-from fft_internal import *
-from clFFT import *
+
+X_DIRECTION = 0
+Y_DIRECTION = 1
+Z_DIRECTION = 2
 
 _dir, _file = os.path.split(os.path.abspath(__file__))
 _template = Template(filename=os.path.join(_dir, 'kernel.mako'))
@@ -19,7 +21,7 @@ class cl_fft_kernel_info:
 		self.in_place_possible = None
 		self.kernel_string = None
 
-def createLocalMemfftKernelString(plan, dataFormat):
+def createLocalMemfftKernelString(plan, split):
 
 	n = plan.n.x
 	assert n <= plan.max_work_item_per_workgroup * plan.max_radix, "signal lenght too big for local mem fft"
@@ -35,7 +37,7 @@ def createLocalMemfftKernelString(plan, dataFormat):
 	kInfo = cl_fft_kernel_info()
 	kInfo.num_workgroups = 0
 	kInfo.num_workitems_per_workgroup = 0
-	kInfo.dir = cl_fft_kernel_x
+	kInfo.dir = X_DIRECTION
 	kInfo.in_place_possible = True
 	kInfo.kernel_name = "fft"
 
@@ -52,7 +54,7 @@ def createLocalMemfftKernelString(plan, dataFormat):
 	kInfo.kernel_string = _template.get_def("localKernel").render(
 		scalar='float',
 		complex='float2',
-		split=(dataFormat == clFFT_SplitComplexFormat),
+		split=split,
 		kernel_name=kInfo.kernel_name,
 		shared_mem=kInfo.lmem_size,
 		numWorkItemsPerXForm=numWorkItemsPerXForm,
@@ -64,12 +66,12 @@ def createLocalMemfftKernelString(plan, dataFormat):
 
 	return kInfo
 
-def createGlobalFFTKernelString(plan, n, BS, dir, vertBS, dataFormat):
+def createGlobalFFTKernelString(plan, n, BS, dir, vertBS, split):
 
 	maxThreadsPerBlock = plan.max_work_item_per_workgroup
 	maxArrayLen = plan.max_radix
 	batchSize = plan.min_mem_coalesce_width
-	vertical = False if dir == cl_fft_kernel_x else True
+	vertical = False if dir == X_DIRECTION else True
 
 	radixArr, R1Arr, R2Arr = getGlobalRadixInfo(n)
 
@@ -139,7 +141,7 @@ def createGlobalFFTKernelString(plan, n, BS, dir, vertBS, dataFormat):
 
 		kInfo.kernel_string = _template.get_def("globalKernel").render(
 			scalar="float", complex="float2",
-			split=(dataFormat == clFFT_SplitComplexFormat),
+			split=split,
 			passNum=passNum,
 			kernel_name=kernelName,
 			radixArr=radixArr,
@@ -168,26 +170,26 @@ def FFT1D(plan, dir):
 
 	kernels = []
 
-	if dir == cl_fft_kernel_x:
+	if dir == X_DIRECTION:
 		if plan.n.x > plan.max_localmem_fft_size:
-			kernels.extend(createGlobalFFTKernelString(plan, plan.n.x, 1, cl_fft_kernel_x, 1, plan.dataFormat))
+			kernels.extend(createGlobalFFTKernelString(plan, plan.n.x, 1, X_DIRECTION, 1, plan.split))
 		elif plan.n.x > 1:
 			radixArray = getRadixArray(plan.n.x, 0)
 			if plan.n.x / radixArray[0] <= plan.max_work_item_per_workgroup:
-				kernels.append(createLocalMemfftKernelString(plan, plan.dataFormat))
+				kernels.append(createLocalMemfftKernelString(plan, plan.split))
 			else:
 				radixArray = getRadixArray(plan.n.x, plan.max_radix)
 				if plan.n.x / radixArray[0] <= plan.max_work_item_per_workgroup:
-					kernels.append(createLocalMemfftKernelString(plan, plan.dataFormat))
+					kernels.append(createLocalMemfftKernelString(plan, plan.split))
 				else:
 					# TODO: find out which conditions are necessary to execute this code
-					kernels.extend(createGlobalFFTKernelString(plan, plan.n.x, 1, cl_fft_kernel_x, 1, plan.dataFormat))
-	elif dir == cl_fft_kernel_y:
+					kernels.extend(createGlobalFFTKernelString(plan, plan.n.x, 1, X_DIRECTION, 1, plan.split))
+	elif dir == Y_DIRECTION:
 		if plan.n.y > 1:
-			kernels.extend(createGlobalFFTKernelString(plan, plan.n.y, plan.n.x, cl_fft_kernel_y, 1, plan.dataFormat))
-	elif dir == cl_fft_kernel_z:
+			kernels.extend(createGlobalFFTKernelString(plan, plan.n.y, plan.n.x, Y_DIRECTION, 1, plan.split))
+	elif dir == Z_DIRECTION:
 		if plan.n.z > 1:
-			kernels.extend(createGlobalFFTKernelString(plan, plan.n.z, plan.n.x*plan.n.y, cl_fft_kernel_z, 1, plan.dataFormat))
+			kernels.extend(createGlobalFFTKernelString(plan, plan.n.z, plan.n.x*plan.n.y, Z_DIRECTION, 1, plan.split))
 	else:
 		raise Exception("Wrong direction")
 
