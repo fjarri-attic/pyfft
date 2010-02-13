@@ -6,7 +6,6 @@ from typenames import *
 from ctypes import c_uint, c_int, c_float, POINTER
 
 from pycuda_util import float2, pointer
-import pycuda.gpuarray as gpuarray
 
 #####################
 # Wrappers to CUFFT #
@@ -128,56 +127,6 @@ def gpu_fft(x, y=None, plan=None):
 
 def gpu_ifft(x, y=None, plan=None):
     _fft(CUFFT_INVERSE, x, y, plan)
-
-class CUFFTPlan:
-
-	def __init__(self, x, y, z, batch):
-		if z == 1:
-			if y == 1:
-				self.dim = 1
-			else:
-				self.dim = 2
-		else:
-			self.dim = 3
-
-		self.x = x
-		self.y = y
-		self.z = z
-
-		self.batch = batch
-		self.temp = gpuarray.GPUArray((x * y * z * batch,), dtype=numpy.complex64)
-		self.xplan = get_1dplan((self.x,), batch=self.y * self.z * self.batch)
-
-		if self.dim > 1:
-			self.yplan = get_1dplan((self.y,), batch=self.x * self.z * self.batch)
-
-		if self.dim > 2:
-			self.zplan = get_1dplan((self.z,), batch=self.x * self.y * self.batch)
-
-		self.tr = transpose.Transpose(complex32)
-
-	def _execute1d(self, idata, odata, direction):
-		_fft(direction, idata, odata, plan=self.xplan)
-
-	def _execute2d(self, idata, odata, direction):
-		self._execute1d(idata, odata, direction)
-		self.tr(self.temp.gpudata, odata.gpudata, self.x, self.y, self.batch * self.z)
-		_fft(direction, self.temp, plan=self.yplan)
-		self.tr(odata.gpudata, self.temp.gpudata, self.y, self.x, self.batch * self.z)
-
-	def _execute3d(self, idata, odata, direction):
-		self._execute2d(idata, odata, direction)
-		self.tr(self.temp.gpudata, odata.gpudata, self.x * self.y, self.z, self.batch)
-		_fft(direction, self.temp, plan=self.zplan)
-		self.tr(odata.gpudata, self.temp.gpudata, self.z, self.x * self.y, self.batch)
-
-	def execute(self, idata, odata, direction):
-		if self.dim == 1:
-			self._execute1d(idata, odata, direction)
-		elif self.dim == 2:
-			self._execute2d(idata, odata, direction)
-		else:
-			self._execute3d(idata, odata, direction)
 
 ##############################
 # 2D FFT Complex <-> Complex #

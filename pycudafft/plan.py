@@ -5,6 +5,9 @@ import pycuda.driver as cuda
 
 from kernel import *
 
+_FFT_1D = 1
+_FFT_2D = 2
+_FFT_3D = 3
 
 class FFTPlan:
 
@@ -13,11 +16,19 @@ class FFTPlan:
 		# TODO: check that dimensions are the power of two
 		# and number of elements in n corresponds to dim
 
+		if z is None:
+			if y is None:
+				self.dim = _FFT_1D
+			else:
+				self.dim = _FFT_2D
+		else:
+			self.dim = _FFT_3D
+
 		class _Dim:
 			def __init__(self, x, y, z):
 				self.x = x
-				self.y = y
-				self.z = z
+				self.y = 1 if y is None else y
+				self.z = 1 if z is None else z
 
 		self.split = split
 		self.n = _Dim(x, y, z)
@@ -65,12 +76,11 @@ class FFTPlan:
 
 	def getBlockConfigAndKernelString(self):
 
-		if self.n.z is None:
-			if self.n.y is None:
-				self.kernels.extend(FFT1D(self, X_DIRECTION))
-			else:
-				self.kernels.extend(FFT1D(self, X_DIRECTION))
-				self.kernels.extend(FFT1D(self, Y_DIRECTION))
+		if self.dim == _FFT_1D:
+			self.kernels.extend(FFT1D(self, X_DIRECTION))
+		elif self.dim == _FFT_2D:
+			self.kernels.extend(FFT1D(self, X_DIRECTION))
+			self.kernels.extend(FFT1D(self, Y_DIRECTION))
 		else:
 			self.kernels.extend(FFT1D(self, X_DIRECTION))
 			self.kernels.extend(FFT1D(self, Y_DIRECTION))

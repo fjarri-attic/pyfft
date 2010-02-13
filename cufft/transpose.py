@@ -55,12 +55,12 @@ __global__ void transposeKernel(${typename}* odata, const ${typename}* idata, in
 
 class Transpose:
 
-	def __init__(self, type):
+	def __init__(self, typename):
 
 		self._half_warp_size = device.get_attribute(device_attribute.WARP_SIZE) / 2
 
 		# render function from template
-		source = _kernel_template.render(typename=type.c_name, half_warp_size=self._half_warp_size)
+		source = _kernel_template.render(typename=typename, half_warp_size=self._half_warp_size)
 
 		# get function from module
 		_kernel_module = SourceModule(source)

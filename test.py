@@ -1,10 +1,10 @@
 from pycuda.autoinit import device
 import pycuda.driver as cuda
 import pycuda.gpuarray as gpuarray
-from pycudafft import *
 import numpy
 
-from cufft.pycuda_fft import *
+from pycudafft import FFTPlan
+from cufft import CUFFTPlan
 
 import time
 import math
@@ -68,8 +68,8 @@ def numpy_fft_base(data, dim, len, batch, func):
 	return numpy.concatenate(tuple(res), axis=dim)
 
 def getDim(x, y, z):
-	if z == 1:
-		if y == 1:
+	if z is None:
+		if y is None:
 			return FFT_1D
 		else:
 			return FFT_2D
@@ -89,25 +89,31 @@ def getTestData(dim, x, y, z, batch, split):
 	else:
 		return rand_complex(*dims)
 
-def testPerformance(x, y, z):
+def testPerformance(x, y=None, z=None):
 
 	buf_size_bytes = MAX_BUFFER_SIZE * 1024 * 1024
 	value_size = 8
 	iterations = 10
 
-	batch = buf_size_bytes / (x * y * z * value_size)
+	batch = buf_size_bytes / (x * (1 if y is None else y) *
+		(1 if z is None else z) * value_size)
 
 	if batch == 0:
 		print "Buffer size is too big, skipping test"
 		return
 
 	dim = getDim(x, y, z)
-	data = getTestData(dim, x, y, z, batch, split)
+	data = getTestData(dim, x, y, z, batch, False)
 
 	a_gpu = gpuarray.to_gpu(data)
 	b_gpu = gpuarray.GPUArray(data.shape, dtype=data.dtype)
 
 	plan = FFTPlan(x, y, z)
+	cufft_plan = CUFFTPlan(x, y, z, batch=batch)
+
+	y = 1 if y is None else y
+	z = 1 if z is None else z
+	gflop = 5.0e-9 * (log2(x) + log2(y) + log2(z)) * x * y * z * batch
 
 	start = cuda.Event()
 	stop = cuda.Event()
@@ -119,15 +125,12 @@ def testPerformance(x, y, z):
 	stop.synchronize()
 	t_pycudafft = stop.time_since(start) / 1000.0 / iterations # in seconds
 
-	cufft_plan = CUFFTPlan(x, y, z, batch)
 	start.record()
 	for i in xrange(iterations):
-		cufft_plan.execute(a_gpu, b_gpu, CUFFT_FORWARD)
+		cufft_plan.execute(a_gpu, b_gpu)
 	stop.record()
 	stop.synchronize()
 	t_cufft = stop.time_since(start) / 1000.0 / iterations # in seconds
-
-	gflop = 5.0e-9 * (log2(x) + log2(y) + log2(z)) * x * y * z * batch
 
 	print "* pycudafft performance: " + str([x, y, z]) + ", batch " + str(batch) + ": " + \
 		str(t_pycudafft * 1000) + " ms, " + str(gflop / t_pycudafft) + " GFLOPS"
@@ -140,8 +143,8 @@ def testErrors(x, y, z, batch, split):
 	epsilon = 1e-6 # TODO: it depends on value type; 1e-6 is for float
 
 	# Skip test if resulting data size is too big
-	if x * y * z * batch * value_size > buf_size_bytes:
-		#print "Array size is " + str(x * y * z * batch * value_size / 1024 / 1024) + " Mb - test skipped"
+	size = x * (1 if y is None else y) * (1 if z is None else z)
+	if size * batch * value_size > buf_size_bytes:
 		return
 
 	dim = getDim(x, y, z)
@@ -157,13 +160,13 @@ def testErrors(x, y, z, batch, split):
 	b_gpu = gpuarray.GPUArray(data.shape, dtype=data.dtype)
 
 	# CUFFT tests
-	cufft_plan = CUFFTPlan(x, y, z, batch)
+	cufft_plan = CUFFTPlan(x, y, z, batch=batch)
 
-	cufft_plan.execute(a_gpu, b_gpu, CUFFT_FORWARD)
+	cufft_plan.execute(a_gpu, b_gpu)
 	cufft_fw = b_gpu.get()
 
-	cufft_plan.execute(b_gpu, a_gpu, CUFFT_INVERSE)
-	cufft_res = a_gpu.get() / (x * y * z)
+	cufft_plan.execute(b_gpu, a_gpu, inverse=True)
+	cufft_res = a_gpu.get() / size
 
 	cufft_err = difference(cufft_res, data, batch)
 
@@ -197,10 +200,10 @@ def testErrors(x, y, z, batch, split):
 	if split:
 		plan.executeSplit(b_gpu_re.gpudata, b_gpu_im.gpudata,
 			a_gpu_re.gpudata, a_gpu_im.gpudata, batch=batch, inverse=True)
-		pyfft_res_outplace = (a_gpu_re.get() + 1j * a_gpu_im.get()) / (x * y * z)
+		pyfft_res_outplace = (a_gpu_re.get() + 1j * a_gpu_im.get()) / size
 	else:
 		plan.execute(b_gpu.gpudata, a_gpu.gpudata, batch=batch, inverse=True)
-		pyfft_res_outplace = a_gpu.get() / (x * y * z)
+		pyfft_res_outplace = a_gpu.get() / size
 
 	pycudafft_err_outplace = difference(pyfft_res_outplace, data, batch)
 
@@ -218,10 +221,10 @@ def testErrors(x, y, z, batch, split):
 	# inplace inverse
 	if split:
 		plan.executeSplit(a_gpu_re.gpudata, a_gpu_im.gpudata, batch=batch, inverse=True)
-		pyfft_res_inplace = (a_gpu_re.get() + 1j * a_gpu_im.get()) / (x * y * z)
+		pyfft_res_inplace = (a_gpu_re.get() + 1j * a_gpu_im.get()) / size
 	else:
 		plan.execute(a_gpu.gpudata, batch=batch, inverse=True)
-		pyfft_res_inplace = a_gpu.get() / (x * y * z)
+		pyfft_res_inplace = a_gpu.get() / size
 
 	pycudafft_err_inplace = difference(pyfft_res_inplace, data, batch)
 
@@ -242,43 +245,44 @@ def testErrors(x, y, z, batch, split):
 
 def runErrorTests():
 
-	def wrapper(x, y, z, batch, split):
+	def wrapper(x, y=None, z=None, batch=1, split=None):
 		try:
-			testErrors(x, y, z, batch, split)
+			testErrors(x, y, z, batch=batch, split=split)
 		except Exception, e:
 			print "failed: " + str([x, y, z]) + ", batch " + str(batch) + \
 				", " + ("split" if split else "interleaved") + \
 				": " + str(e)
+			raise
 
 	for split in [False, True]:
 		for batch in [1, 16, 128, 1024, 4096]:
 
 			# 1D
 			for x in [3, 8, 9, 10, 13]:
-				wrapper(2 ** x, 1, 1, batch, split)
+				wrapper(2 ** x, batch=batch, split=split)
 
 			# 2D
 			for x in [4, 7, 8, 10]:
 				for y in [4, 7, 8, 10]:
-					wrapper(2 ** x, 2 ** y, 1, batch, split)
+					wrapper(2 ** x, 2 ** y, batch=batch, split=split)
 
 			# 3D
 			for x in [4, 7, 10]:
 				for y in [4, 7, 10]:
 					for z in [4, 7, 10]:
-						wrapper(2 ** x, 2 ** y, 2 ** z, batch, split)
+						wrapper(2 ** x, 2 ** y, 2 ** z, batch=batch, split=split)
 
 	# these tests currently do not work, added to achieve 100% coverage
-	wrapper(2048, 1, 1, 1, False)
-	wrapper(16, 1, 1, 1, False) # while plan.mem_coalesce_with = 32
+	wrapper(2048)
+	wrapper(16) # while plan.mem_coalesce_with = 32
 
 def runPerformanceTests():
-	testPerformance(16, 1, 1)
-	testPerformance(1024, 1, 1)
-	testPerformance(8192, 1, 1)
-	testPerformance(16, 16, 1)
-	testPerformance(128, 128, 1)
-	testPerformance(1024, 1024, 1)
+	testPerformance(16)
+	testPerformance(1024)
+	testPerformance(8192)
+	testPerformance(16, 16)
+	testPerformance(128, 128)
+	testPerformance(1024, 1024)
 	testPerformance(16, 16, 16)
 	testPerformance(32, 32, 128)
 	testPerformance(128, 128, 128)
