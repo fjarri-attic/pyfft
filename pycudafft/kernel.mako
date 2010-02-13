@@ -539,20 +539,20 @@
 	%endfor
 </%def>
 
-<%def name="insertTwiddleKernel(radix, num_iter, Nprev, len, threads_per_xform, scalar)">
+<%def name="insertTwiddleKernel(radix, num_iter, radix_prev, len, threads_per_xform, scalar)">
 
-	<% logNPrev = log2(Nprev) %>
+	<% log2_radix_prev = log2(radix_prev) %>
 
 	%for z in range(num_iter):
 		%if z == 0:
-			%if Nprev > 1:
-				angf = (${scalar})(ii >> ${logNPrev});
+			%if radix_prev > 1:
+				angf = (${scalar})(ii >> ${log2_radix_prev});
 			%else:
 				angf = (${scalar})ii;
 			%endif
 		%else:
-			%if Nprev > 1:
-				angf = (${scalar})((${z * threads_per_xform} + ii) >> ${logNPrev});
+			%if radix_prev > 1:
+				angf = (${scalar})((${z * threads_per_xform} + ii) >> ${log2_radix_prev});
 			%else:
 				## TODO: find out which conditions are necessary to execute this code
 				angf = (${scalar})(${z * threads_per_xform} + ii);
@@ -563,36 +563,36 @@
 			<% ind = z * radix + k %>
 			ang = dir * ((${scalar})2 * M_PI * (${scalar})${k} / (${scalar})${len}) * angf;
 			## TODO: use native_cos and sin (as OpenCL implementation did)
-			w = make_float2(cos(ang), sin(ang));
+			w = complex_ctr(cos(ang), sin(ang));
 			a[${ind}] = a[${ind}] * w;
 		%endfor
 	%endfor
 </%def>
 
-<%def name="insertLocalStores(num_iter, radix, threads_per_xform, numWorkItemsReq, offset, comp)">
+<%def name="insertLocalStores(num_iter, radix, threads_per_xform, threads_req, offset, comp)">
 	%for z in range(num_iter):
 		%for k in range(radix):
-			<% index = k * (numWorkItemsReq + offset) + z * threads_per_xform %>
+			<% index = k * (threads_req + offset) + z * threads_per_xform %>
 			smem[smem_store_index + ${index}] = a[${z * radix + k}].${comp};
 		%endfor
 	%endfor
 	__syncthreads();
 </%def>
 
-<%def name="insertLocalLoads(n, radix, Nrn, Nprev, Ncurr, threads_per_xform, numWorkItemsReq, offset, comp)">
+<%def name="insertLocalLoads(n, radix, radix_next, radix_prev, radix_curr, threads_per_xform, threads_req, offset, comp)">
 	<%
-		numWorkItemsReqN = n / Nrn
-		interBlockHNum = max(Nprev / threads_per_xform, 1)
+		threads_req_next = n / radix_next
+		interBlockHNum = max(radix_prev / threads_per_xform, 1)
 		interBlockHStride = threads_per_xform
-		vertWidth = max(threads_per_xform / Nprev, 1)
+		vertWidth = max(threads_per_xform / radix_prev, 1)
 		vertWidth = min(vertWidth, radix)
 		vertNum = radix / vertWidth
 		vertStride = (n / radix + offset) * vertWidth
-		iter = max(numWorkItemsReqN / threads_per_xform, 1)
-		intraBlockHStride = (threads_per_xform / (Nprev*radix)) if (threads_per_xform / (Nprev*radix)) > 1 else 1
-		intraBlockHStride *= Nprev
+		iter = max(threads_req_next / threads_per_xform, 1)
+		intraBlockHStride = (threads_per_xform / (radix_prev*radix)) if (threads_per_xform / (radix_prev*radix)) > 1 else 1
+		intraBlockHStride *= radix_prev
 
-		stride = numWorkItemsReq / Nrn
+		stride = threads_req / radix_next
 	%>
 
 	%for i in range(iter):
@@ -603,45 +603,45 @@
 			kk = zz / interBlockHNum
 		%>
 
-		%for z in range(Nrn):
+		%for z in range(radix_next):
 			<% st = kk * vertStride + jj * interBlockHStride + ii * intraBlockHStride + z * stride %>
-			a[${i * Nrn + z}].${comp} = smem[smem_load_index + ${st}];
+			a[${i * radix_next + z}].${comp} = smem[smem_load_index + ${st}];
 		%endfor
 	%endfor
 	__syncthreads();
 </%def>
 
-<%def name="insertLocalLoadIndexArithmetic(Nprev, radix, numWorkItemsReq, threads_per_xform, xforms_per_block, offset, midPad)">
+<%def name="insertLocalLoadIndexArithmetic(radix_prev, radix, threads_req, threads_per_xform, xforms_per_block, offset, midPad)">
 	<%
-		Ncurr = Nprev * radix
-		logNcurr = log2(Ncurr)
-		logNprev = log2(Nprev)
-		incr = (numWorkItemsReq + offset) * radix + midPad
+		radix_curr = radix_prev * radix
+		log2_radix_curr = log2(radix_curr)
+		log2_radix_prev = log2(radix_prev)
+		incr = (threads_req + offset) * radix + midPad
 	%>
 
-	%if Ncurr < threads_per_xform:
-		%if Nprev == 1:
-			j = ii & ${Ncurr - 1};
+	%if radix_curr < threads_per_xform:
+		%if radix_prev == 1:
+			j = ii & ${radix_curr - 1};
 		%else:
-			j = (ii & ${Ncurr - 1}) >> ${logNprev};
+			j = (ii & ${radix_curr - 1}) >> ${log2_radix_prev};
 		%endif
 
-		%if Nprev == 1:
-			i = ii >> ${logNcurr};
+		%if radix_prev == 1:
+			i = ii >> ${log2_radix_curr};
 		%else:
-			i = mad24(ii >> ${logNcurr}, ${Nprev}, ii & ${Nprev - 1});
+			i = mad24(ii >> ${log2_radix_curr}, ${radix_prev}, ii & ${radix_prev - 1});
 		%endif
 	%else:
-		%if Nprev == 1:
+		%if radix_prev == 1:
 			j = ii;
 		%else:
-			j = ii >> ${logNprev};
+			j = ii >> ${log2_radix_prev};
 		%endif
 
-		%if Nprev == 1:
+		%if radix_prev == 1:
 			i = 0;
 		%else:
-			i = ii & ${Nprev - 1};
+			i = ii & ${radix_prev - 1};
 		%endif
 	%endif
 
@@ -649,14 +649,14 @@
 		i = mad24(jj, ${incr}, i);
 	%endif
 
-	smem_load_index = mad24(j, ${numWorkItemsReq + offset}, i);
+	smem_load_index = mad24(j, ${threads_req + offset}, i);
 </%def>
 
-<%def name="insertLocalStoreIndexArithmatic(numWorkItemsReq, xforms_per_block, radix, offset, midPad)">
+<%def name="insertLocalStoreIndexArithmatic(threads_req, xforms_per_block, radix, offset, midPad)">
 	%if xforms_per_block == 1:
 		smem_store_index = ii;
 	%else:
-		smem_store_index = mad24(jj, ${(numWorkItemsReq + offset) * radix + midPad}, ii);
+		smem_store_index = mad24(jj, ${(threads_req + offset) * radix + midPad}, ii);
 	%endif
 </%def>
 
@@ -696,7 +696,7 @@ extern "C" {
 			min_mem_coalesce_width, split)}
 
 		<%
-			Nprev = 1
+			radix_prev = 1
 			len_ = n
 			numRadix = len(N)
 		%>
@@ -704,26 +704,26 @@ extern "C" {
 	%for r in range(numRadix):
 		<%
 			num_iter = N[0] / N[r]
-			numWorkItemsReq = n / N[r]
-			Ncurr = Nprev * N[r]
+			threads_req = n / N[r]
+			radix_curr = radix_prev * N[r]
 		%>
 
 		${insertfftKernel(N[r], num_iter)}
 
 		%if r < numRadix - 1:
-			${insertTwiddleKernel(N[r], num_iter, Nprev, len_, threads_per_xform, scalar)}
+			${insertTwiddleKernel(N[r], num_iter, radix_prev, len_, threads_per_xform, scalar)}
 			<%
-				lMemSize, offset, midPad = getPadding(threads_per_xform, Nprev, numWorkItemsReq,
+				lMemSize, offset, midPad = getPadding(threads_per_xform, radix_prev, threads_req,
 					xforms_per_block, N[r], num_local_mem_banks)
 			%>
-			${insertLocalStoreIndexArithmatic(numWorkItemsReq, xforms_per_block, N[r], offset, midPad)}
-			${insertLocalLoadIndexArithmetic(Nprev, N[r], numWorkItemsReq, threads_per_xform, xforms_per_block, offset, midPad)}
-			${insertLocalStores(num_iter, N[r], threads_per_xform, numWorkItemsReq, offset, "x")}
-			${insertLocalLoads(n, N[r], N[r+1], Nprev, Ncurr, threads_per_xform, numWorkItemsReq, offset, "x")}
-			${insertLocalStores(num_iter, N[r], threads_per_xform, numWorkItemsReq, offset, "y")}
-			${insertLocalLoads(n, N[r], N[r+1], Nprev, Ncurr, threads_per_xform, numWorkItemsReq, offset, "y")}
+			${insertLocalStoreIndexArithmatic(threads_req, xforms_per_block, N[r], offset, midPad)}
+			${insertLocalLoadIndexArithmetic(radix_prev, N[r], threads_req, threads_per_xform, xforms_per_block, offset, midPad)}
+			${insertLocalStores(num_iter, N[r], threads_per_xform, threads_req, offset, "x")}
+			${insertLocalLoads(n, N[r], N[r+1], radix_prev, radix_curr, threads_per_xform, threads_req, offset, "x")}
+			${insertLocalStores(num_iter, N[r], threads_per_xform, threads_req, offset, "y")}
+			${insertLocalLoads(n, N[r], N[r+1], radix_prev, radix_curr, threads_per_xform, threads_req, offset, "y")}
 			<%
-				Nprev = Ncurr
+				radix_prev = radix_curr
 				len_ = len_ / N[r]
 			%>
 		%endif
