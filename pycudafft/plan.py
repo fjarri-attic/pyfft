@@ -15,8 +15,6 @@ class FFTPlan:
 	def __init__(self, x, y=None, z=None, split=False):
 
 		# TODO: check that dimensions are the power of two
-		# and number of elements in n corresponds to dim
-
 		if z is None:
 			if y is None:
 				self.dim = _FFT_1D
@@ -116,7 +114,7 @@ class FFTPlan:
 
 	def execute(self, data_in, data_out=None, inverse=False, batch=1):
 
-		inPlaceDone = 0
+		inPlaceDone = False
 		if data_out is None:
 			data_out = data_in
 			isInPlace = True
@@ -151,6 +149,7 @@ class FFTPlan:
 			if isInPlace:
 				currRead  = 1
 				currWrite = 2
+				inPlaceDone = False
 			else:
 				currWrite = 1 if numKernelsOdd else 2
 
@@ -188,7 +187,7 @@ class FFTPlan:
 
 	def executeSplit(self, data_in_re, data_in_im, data_out_re=None, data_out_im=None, inverse=False, batch=1):
 
-		inPlaceDone = 0
+		inPlaceDone = False
 		if data_out_re is None and data_out_im is None:
 			data_out_re = data_in_re
 			data_out_im = data_in_im
@@ -232,6 +231,7 @@ class FFTPlan:
 			if isInPlace:
 				currRead  = 1
 				currWrite = 2
+				inPlaceDone = False
 			else:
 				currWrite = 1 if numKernelsOdd else 2
 
