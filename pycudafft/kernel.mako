@@ -1,39 +1,3 @@
-<%!
-	# TODO: think of something more effective
-	def log2(n):
-		pos = 0
-		for pow in [16, 8, 4, 2, 1]:
-			if n >= 2 ** pow:
-				n /= (2 ** pow)
-				pos += pow
-		return pos
-
-	def getPadding(numWorkItemsPerXForm, Nprev, numWorkItemsReq, numXFormsPerWG, Nr, numBanks):
-
-		if numWorkItemsPerXForm <= Nprev or Nprev >= numBanks:
-			offset = 0
-		else:
-			numRowsReq = (numWorkItemsPerXForm if numWorkItemsPerXForm < numBanks else numBanks) / Nprev
-			numColsReq = 1
-			if numRowsReq > Nr:
-				numColsReq = numRowsReq / Nr
-			numColsReq = Nprev * numColsReq
-			offset = numColsReq
-
-		if numWorkItemsPerXForm >= numBanks or numXFormsPerWG == 1:
-			midPad = 0
-		else:
-			bankNum = ( (numWorkItemsReq + offset) * Nr ) & (numBanks - 1)
-			if bankNum >= numWorkItemsPerXForm:
-				midPad = 0
-			else:
-				# TODO: find out which conditions are necessary to execute this code
-				midPad = numWorkItemsPerXForm - bankNum
-
-		lMemSize = (numWorkItemsReq + offset) * Nr * numXFormsPerWG + midPad * (numXFormsPerWG - 1)
-		return lMemSize, offset, midPad
-%>
-
 <%def name="baseKernels(scalar, complex)">
 
 	#ifndef M_PI
@@ -705,7 +669,7 @@
 </%def>
 
 <%def name="localKernel(scalar, complex, split, kernel_name, shared_mem, numWorkItemsPerXForm, numXFormsPerWG, \
-	min_mem_coalesce_width, N, n, num_local_mem_banks)">
+	min_mem_coalesce_width, N, n, num_local_mem_banks, log2, getPadding)">
 
 	<% max_radix = N[0] %>
 
@@ -782,7 +746,7 @@ extern "C" {
 </%def>
 
 <%def name="globalKernel(scalar, complex, split, passNum, kernel_name, radixArr, numPasses, shared_mem, R1Arr, \
-	R2Arr, Rinit, batchSize, BS, vertBS, vertical, maxThreadsPerBlock, max_work_item_per_workgroup, n, N)">
+	R2Arr, Rinit, batchSize, BS, vertBS, vertical, maxThreadsPerBlock, max_work_item_per_workgroup, n, N, log2, getPadding)">
 
 ${baseKernels(scalar, complex)}
 

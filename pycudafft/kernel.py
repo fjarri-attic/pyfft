@@ -62,7 +62,9 @@ def createLocalMemfftKernelString(plan, split):
 		min_mem_coalesce_width=plan.min_mem_coalesce_width,
 		N=radixArray,
 		n=n,
-		num_local_mem_banks=plan.num_local_mem_banks)
+		num_local_mem_banks=plan.num_local_mem_banks,
+		log2=log2,
+		getPadding=getPadding)
 
 	return kInfo
 
@@ -157,7 +159,9 @@ def createGlobalFFTKernelString(plan, n, BS, dir, vertBS, split):
 			maxThreadsPerBlock=maxThreadsPerBlock,
 			max_work_item_per_workgroup=plan.max_work_item_per_workgroup,
 			n=n,
-			N=N
+			N=N,
+			log2=log2,
+			getPadding=getPadding
 			)
 
 		N /= radix
