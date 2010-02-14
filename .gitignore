@@ -2,3 +2,6 @@
 cuda/obj/*
 cuda/release/*
 *.o
+*.rst
+pycudafft.egg-info/*
+
