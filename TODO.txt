@@ -10,6 +10,7 @@ global:
       ported code; they do not work because of some bug in PyCuda)
     - currently most kernels for complex FFTs have non-zero local memory size (recompilation with lower
       block size does not help). Investigate how much it decreases performance.
+    - add support for execution on custom device (not just on the one returned from autoinit)
 
 optimizations (only after benchmarks!):
     - replace mad24() with vector function
