@@ -44,35 +44,12 @@ class FFTPlan:
 		self.num_smem_banks = device.get_attribute(device_attribute.WARP_SIZE) / 2
 
 		self.max_block_size = device.get_attribute(device_attribute.MAX_BLOCK_DIM_X)
+		self.max_registers = device.get_attribute(device_attribute.MAX_REGISTERS_PER_BLOCK)
 
-		# TODO: make this 'recompile-if-necessary' code more good looking
-		done = False
-		while not done:
-			self.kernels = []
-			self._generateKernelCode()
-			try:
-				self._compileKernels()
-			except:
-				if self.max_block_size > 1:
-					self.max_block_size /= 2
-					continue
-				raise Exception("Cannot meet number of registers/shared memory requirements")
-			done = True
-
-	def _compileKernels(self):
-		shared_mem_limit = device.get_attribute(device_attribute.MAX_SHARED_MEMORY_PER_BLOCK)
-		reg_limit = device.get_attribute(device_attribute.MAX_REGISTERS_PER_BLOCK)
-
-		for kinfo in self.kernels:
-			kinfo.module = SourceModule(kinfo.kernel_string, no_extern_c=True)
-			kinfo.function_ref = kinfo.module.get_function(kinfo.kernel_name)
-			if kinfo.function_ref.shared_size_bytes > shared_mem_limit:
-				raise Exception("Insufficient shared memory")
-			if kinfo.function_ref.num_regs * kinfo.block_size > reg_limit:
-				raise Exception("Insufficient registers")
+		self._generateKernelCode()
 
 	def _generateKernelCode(self):
-
+		self.kernels = []
 		if self.dim == _FFT_1D:
 			self.kernels.extend(FFT1D(self, X_DIRECTION))
 		elif self.dim == _FFT_2D:
@@ -87,27 +64,6 @@ class FFTPlan:
 		for kinfo in self.kernels:
 			if not kinfo.in_place_possible:
 				self.temp_buffer_needed = True
-
-	def _getKernelWorkDimensions(self, kinfo, batch):
-
-		block_size = kinfo.block_size
-		blocks_num = kinfo.blocks_num
-
-		if kinfo.dir == X_DIRECTION:
-			max_smem_fft_size = self.max_smem_fft_size
-			if self.n.x <= max_smem_fft_size:
-				batch = self.n.y * self.n.z * batch
-				blocks_num = (batch / blocks_num + 1) if batch % blocks_num != 0 else batch / blocks_num
-			else:
-				batch *= self.n.y * self.n.z
-				blocks_num *= batch
-		elif kinfo.dir == Y_DIRECTION:
-			batch *= self.n.z
-			blocks_num *= batch
-		elif kinfo.dir == Z_DIRECTION:
-			blocks_num *= batch
-
-		return batch, blocks_num, block_size
 
 	def execute(self, data_in, data_out=None, inverse=False, batch=1):
 
@@ -155,13 +111,8 @@ class FFTPlan:
 					curr_write = curr_read
 					inplace_done = True
 
-				s = batch
-				s, blocks_num, block_size = self._getKernelWorkDimensions(kinfo, s)
-
-				func = kinfo.function_ref
-				# TODO: prepare functions when creating the plan
-				func.prepare("PPii", block=(block_size, 1, 1))
-				func.prepared_call((blocks_num, 1), mem_objs[curr_read], mem_objs[curr_write], dir, s)
+				kinfo.prepare(batch)
+				kinfo.preparedCall(mem_objs[curr_read], mem_objs[curr_write], dir)
 
 				curr_read  = 1 if (curr_write == 1) else 2
 				curr_write = 2 if (curr_write == 1) else 1
@@ -170,14 +121,8 @@ class FFTPlan:
 		# all kernels can execute in-place.
 		else:
 			for kinfo in self.kernels:
-
-				s = batch
-				s, blocks_num, block_size = self._getKernelWorkDimensions(kinfo, s)
-
-				func = kinfo.function_ref
-				# TODO: prepare functions when creating the plan
-				func.prepare("PPii", block=(block_size, 1, 1))
-				func.prepared_call((blocks_num, 1), mem_objs[curr_read], mem_objs[curr_write], dir, s)
+				kinfo.prepare(batch)
+				kinfo.preparedCall(mem_objs[curr_read], mem_objs[curr_write], dir)
 
 				curr_read  = 1
 				curr_write = 1
@@ -237,14 +182,9 @@ class FFTPlan:
 					curr_write = curr_read
 					inplace_done = True
 
-				s = batch
-				s, blocks_num, block_size = self._getKernelWorkDimensions(kinfo, s)
-
-				func = kinfo.function_ref
-				# TODO: prepare functions when creating the plan
-				func.prepare("PPPPii", block=(block_size, 1, 1))
-				func.prepared_call((blocks_num, 1), mem_objs_re[curr_read],
-					mem_objs_im[curr_read], mem_objs_re[curr_write], mem_objs_im[curr_write], dir, s)
+				kinfo.prepare(batch)
+				kinfo.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
+					mem_objs_re[curr_write], mem_objs_im[curr_write], dir)
 
 				curr_read  = 1 if (curr_write == 1) else 2
 				curr_write = 2 if (curr_write == 1) else 1
@@ -253,15 +193,9 @@ class FFTPlan:
 		# all kernels can execute in-place.
 		else:
 			for kinfo in self.kernels:
-
-				s = batch
-				s, blocks_num, block_size = self._getKernelWorkDimensions(kinfo, s)
-
-				func = kinfo.function_ref
-				# TODO: prepare functions when creating the plan
-				func.prepare("PPPPii", block=(block_size, 1, 1))
-				func.prepared_call((blocks_num, 1), mem_objs_re[curr_read],
-					mem_objs_im[curr_read], mem_objs_re[curr_write], mem_objs_im[curr_write], dir, s)
+				kinfo.prepare(batch)
+				kinfo.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
+					mem_objs_re[curr_write], mem_objs_im[curr_write], dir)
 
 				curr_read  = 1
 				curr_write = 1
