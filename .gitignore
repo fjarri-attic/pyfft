@@ -4,4 +4,6 @@ cuda/release/*
 *.o
 *.rst
 pycudafft.egg-info/*
+build/*
+dist/*
 
