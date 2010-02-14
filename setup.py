@@ -15,6 +15,7 @@ open(os.path.join(os.path.dirname(__file__), 'documentation.rst'), 'w').write(DO
 setup(
 	name='pycudafft',
 	packages=['pycudafft', 'cufft'],
+	data_files=[('', ['test.py', 'doc.py'])],
 	requires=['pycuda', 'mako', 'numpy'],
 	version=VERSION,
 	author='Bogdan Opanchuk',
