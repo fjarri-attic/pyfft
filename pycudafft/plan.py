@@ -51,19 +51,52 @@ class FFTPlan:
 	def _generateKernelCode(self):
 		self.kernels = []
 		if self.dim == _FFT_1D:
-			self.kernels.extend(FFT1D(self, X_DIRECTION))
+			self.kernels.extend(self._fft1D(X_DIRECTION))
 		elif self.dim == _FFT_2D:
-			self.kernels.extend(FFT1D(self, X_DIRECTION))
-			self.kernels.extend(FFT1D(self, Y_DIRECTION))
+			self.kernels.extend(self._fft1D(X_DIRECTION))
+			self.kernels.extend(self._fft1D(Y_DIRECTION))
 		else:
-			self.kernels.extend(FFT1D(self, X_DIRECTION))
-			self.kernels.extend(FFT1D(self, Y_DIRECTION))
-			self.kernels.extend(FFT1D(self, Z_DIRECTION))
+			self.kernels.extend(self._fft1D(X_DIRECTION))
+			self.kernels.extend(self._fft1D(Y_DIRECTION))
+			self.kernels.extend(self._fft1D(Z_DIRECTION))
 
 		self.temp_buffer_needed = False
 		for kinfo in self.kernels:
 			if not kinfo.in_place_possible:
 				self.temp_buffer_needed = True
+
+	def _fft1D(self, dir):
+
+		kernels = []
+
+		if dir == X_DIRECTION:
+			if self.n.x > self.max_smem_fft_size:
+				kernels.extend(GlobalFFTKernel.createChain(self, self.n.x, 1 , X_DIRECTION, 1))
+			elif self.n.x > 1:
+				radix_array = getRadixArray(self.n.x, 0)
+				if self.n.x / radix_array[0] <= self.max_block_size:
+					kernel = LocalFFTKernel(self, self.n.x)
+					kernel.compile(self.max_block_size)
+					kernels.append(kernel)
+				else:
+					radix_array = getRadixArray(self.n.x, self.max_radix)
+					if self.n.x / radix_array[0] <= self.max_block_size:
+						kernel = LocalFFTKernel(self, self.n.x)
+						kernel.compile(self.max_block_size)
+						kernels.append(kernel)
+					else:
+						# TODO: find out which conditions are necessary to execute this code
+						kernels.extend(GlobalFFTKernel.createChain(self, self.n.x, 1 , X_DIRECTION, 1))
+		elif dir == Y_DIRECTION:
+			if self.n.y > 1:
+				kernels.extend(GlobalFFTKernel.createChain(self, self.n.y, self.n.x, Y_DIRECTION, 1))
+		elif dir == Z_DIRECTION:
+			if self.n.z > 1:
+				kernels.extend(GlobalFFTKernel.createChain(self, self.n.z, self.n.x * self.n.y, Z_DIRECTION, 1))
+		else:
+			raise Exception("Wrong direction")
+
+		return kernels
 
 	def execute(self, data_in, data_out=None, inverse=False, batch=1):
 

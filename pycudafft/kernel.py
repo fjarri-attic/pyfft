@@ -12,7 +12,7 @@ Z_DIRECTION = 2
 _dir, _file = os.path.split(os.path.abspath(__file__))
 _template = Template(filename=os.path.join(_dir, 'kernel.mako'))
 
-class FFTKernel:
+class _FFTKernel:
 
 	def __init__(self, plan):
 		self.x = plan.n.x
@@ -50,7 +50,6 @@ class FFTKernel:
 			if func_ref.num_regs * self.block_size > self.max_registers:
 				continue
 
-			# generated code with acceptable number of registers and zero local memory
 			self.module = module
 			self.func_ref = func_ref
 			break
@@ -98,10 +97,10 @@ class FFTKernel:
 		return batch, blocks_num
 
 
-class LocalFFTKernel(FFTKernel):
+class LocalFFTKernel(_FFTKernel):
 
 	def __init__(self, plan, n):
-		FFTKernel.__init__(self, plan)
+		_FFTKernel.__init__(self, plan)
 		self.n = n
 
 	def generate(self, max_block_size):
@@ -145,10 +144,10 @@ class LocalFFTKernel(FFTKernel):
 			getPadding=getPadding)
 
 
-class GlobalFFTKernel(FFTKernel):
+class GlobalFFTKernel(_FFTKernel):
 
 	def __init__(self, plan, pass_num, n, curr_n, horiz_bs, dir, vert_bs, batch_size):
-		FFTKernel.__init__(self, plan)
+		_FFTKernel.__init__(self, plan)
 		self.n = n
 		self.curr_n = curr_n
 		self.horiz_bs = horiz_bs
@@ -266,37 +265,3 @@ class GlobalFFTKernel(FFTKernel):
 			kernels.append(kernel)
 
 		return kernels
-
-
-def FFT1D(plan, dir):
-
-	kernels = []
-
-	if dir == X_DIRECTION:
-		if plan.n.x > plan.max_smem_fft_size:
-			kernels.extend(GlobalFFTKernel.createChain(plan, plan.n.x, 1 , X_DIRECTION, 1))
-		elif plan.n.x > 1:
-			radix_array = getRadixArray(plan.n.x, 0)
-			if plan.n.x / radix_array[0] <= plan.max_block_size:
-				kernel = LocalFFTKernel(plan, plan.n.x)
-				kernel.compile(plan.max_block_size)
-				kernels.append(kernel)
-			else:
-				radix_array = getRadixArray(plan.n.x, plan.max_radix)
-				if plan.n.x / radix_array[0] <= plan.max_block_size:
-					kernel = LocalFFTKernel(plan, plan.n.x)
-					kernel.compile(plan.max_block_size)
-					kernels.append(kernel)
-				else:
-					# TODO: find out which conditions are necessary to execute this code
-					kernels.extend(GlobalFFTKernel.createChain(plan, plan.n.x, 1 , X_DIRECTION, 1))
-	elif dir == Y_DIRECTION:
-		if plan.n.y > 1:
-			kernels.extend(GlobalFFTKernel.createChain(plan, plan.n.y, plan.n.x, Y_DIRECTION, 1))
-	elif dir == Z_DIRECTION:
-		if plan.n.z > 1:
-			kernels.extend(GlobalFFTKernel.createChain(plan, plan.n.z, plan.n.x * plan.n.y, Z_DIRECTION, 1))
-	else:
-		raise Exception("Wrong direction")
-
-	return kernels
