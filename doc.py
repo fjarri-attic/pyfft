@@ -26,6 +26,8 @@ Quick Start
 
 The usage is quite simple. First, import ``pycudafft`` and ``numpy``:
 
+ >>> import pycuda.autoinit
+ >>> import pycuda.gpuarray as gpuarray
  >>> from pycudafft import FFTPlan
  >>> import numpy
 
@@ -36,6 +38,124 @@ use the same plan for each run of your program, it will be created pretty fast.
  >>> plan = FFTPlan(16, 16)
 
 Now, let's prepare simple test array and try to execute plan over it:
+
+ >>> data = numpy.ones((16, 16), dtype=numpy.complex64)
+ >>> gpu_data = gpuarray.to_gpu(data)
+ >>> plan.execute(gpu_data)
+ >>> result = gpu_data.get()
+ >>> print result # doctest: +ELLIPSIS
+ [[ 256.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j
+      0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j
+      0.+0.j    0.+0.j]
+ ...
+  [   0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j
+      0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j
+      0.+0.j    0.+0.j]]
+
+As expected, we got array with the first non-zero element, equal to array size.
+Let's now perform the inverse transform.
+
+ >>> plan.execute(gpu_data, inverse=True)
+ >>> result = gpu_data.get()
+
+Since data is non-integer, we cannot simply compare it. We will just calculate error instead.
+
+ >>> error = numpy.sum(numpy.abs(data) - numpy.abs(result)) / 256
+ >>> error < 1e-6
+ True
+
+That's good enough for single precision numbers.
+
+Reference
+---------
+
+FFTPlan
+~~~~~~~
+
+Class, containing precalculated FFT plan.
+
+**Arguments**: ``FFTPlan(x, y=None, z=None, split=False, dtype=numpy.complex64)``
+
+``x``, ``y``, ``z``:
+  Problem size. If ``z`` and/or ``y`` are not defined, 2D or 1D plan will be created.
+
+  **Warning**: 2D and 3D plans with ``y``=1 or ``z``=1 are not supported at the moment.
+
+``split``:
+  If ``True``, the plan will support separate data arrays with real and imaginary parts
+  instead of interleaved arrays.
+
+``dtype``:
+  Data type to use. At the moment only ``complex64`` (single precision) is supported.
+
+FFTPlan.execute()
+~~~~~~~~~~~~~~~~~
+
+Execute plan for interleaved data arrays.
+
+**Arguments**: ``execute(data_in, data_out=None, inverse=False, batch=1)``
+
+``data_in``:
+  Input array.
+
+``data_out``:
+  Output array. If not defined, the execution will be performed in-place and the results
+  will be stored in ``data_in``.
+
+``inverse``:
+  If ``True``, inverse transform will be performed.
+
+``batch``:
+  Number of data sets to process. They should be located successively in ``data_in``.
+
+FFTPlan.executeSplit()
+~~~~~~~~~~~~~~~~~
+
+Execute plan for split data arrays.
+
+**Arguments**: ``executeSplit(data_in_re, data_in_im, data_out_re=None, data_out_im=None, inverse=False, batch=1)``
+
+``data_in_re``, ``data_in_im``:
+  Input arrays with real and imaginary data parts correspondingly.
+
+``data_out_re``, ``data_out_im``:
+  Output arrays. If not defined, the execution will be performed in-place and the results
+  will be stored in ``data_in_re`` and ``data_in_im``.
+
+``inverse``:
+  If ``True``, inverse transform will be performed.
+
+``batch``:
+  Number of data sets to process. They should be located successively in ``data_in``.
+
+Performance
+~~~~~~~~~~~
+
+Here is the comparison to PyCuda CUFFT wrapper. Results were obtained on Mac OS 10.6.2,
+Python 2.6, Cuda 2.3, PyCuda 0.94, GF9400.
+
++---------------------------+------------+------------+
+| Problem size / GFLOPS     | CUFFT      | pycudafft  |
++===========================+============+============+
+| [16, 1, 1], batch 131072  | 1.06       | 1.34       |
++---------------------------+------------+------------+
+| [1024, 1, 1], batch 2048  | 9.32       | 1.21       |
++---------------------------+------------+------------+
+| [8192, 1, 1], batch 256   | 9.27       | 1.26       |
++---------------------------+------------+------------+
+| [16, 16, 1], batch 8192   | 0.81       | 1.91       |
++---------------------------+------------+------------+
+| [128, 128, 1], batch 128  | 8.58       | 2.18       |
++---------------------------+------------+------------+
+| [1024, 1024, 1], batch 2  | 7.71       | 1.29       |
++---------------------------+------------+------------+
+| [16, 16, 16], batch 512   | 0.85       | 2.27       |
++---------------------------+------------+------------+
+| [32, 32, 128], batch 16   | 2.60       | 2.48       |
++---------------------------+------------+------------+
+| [128, 128, 128], batch 1  | 6.37       | 2.61       |
++---------------------------+------------+------------+
+
 """
 
 import doctest
@@ -47,7 +167,7 @@ DOCUMENTATION = __doc__
 if __name__ == "__main__":
 	print("=" * 70)
 	time1 = time.time()
-	doctest.testmod(m=sys.modules.get(__name__), verbose=False if verbosity < 3 else True)
+	doctest.testmod(m=sys.modules.get(__name__))
 	time2 = time.time()
 	print("=" * 70)
 
