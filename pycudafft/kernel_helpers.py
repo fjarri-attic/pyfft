@@ -7,10 +7,10 @@ def log2(n):
 			pos += pow
 	return pos
 
-def getRadixArray(n, maxRadix):
+def getRadixArray(n, max_radix):
 	"""
 	For any n, this function decomposes n into factors for loacal memory tranpose
-	based fft. Factors (radices) are sorted such that the first one (radixArray[0])
+	based fft. Factors (radices) are sorted such that the first one (radix_array[0])
 	is the largest. This base radix determines the number of registers used by each
 	work item and product of remaining radices determine the size of work group needed.
 	To make things concrete with and example, suppose n = 1024. It is decomposed into
@@ -38,14 +38,14 @@ def getRadixArray(n, maxRadix):
 	smaller base radix can avoid spilling ... some has small local memory thus
 	using smaller work group size may be required etc
 	"""
-	if maxRadix > 1:
-		maxRadix = min(n, maxRadix)
-		radixArray = []
-		while n > maxRadix:
-			radixArray.append(maxRadix)
-			n /= maxRadix
-		radixArray.append(n)
-		return radixArray
+	if max_radix > 1:
+		max_radix = min(n, max_radix)
+		radix_array = []
+		while n > max_radix:
+			radix_array.append(max_radix)
+			n /= max_radix
+		radix_array.append(n)
+		return radix_array
 
 	if n in [2, 4, 8]:
 		return [n]
@@ -87,17 +87,17 @@ def getGlobalRadixInfo(n):
 	decompositions of base radices to generates different kernels and see which gives
 	best performance. Following function is just fixed to use 128 as base radix
 	"""
-	baseRadix = min(n, 128)
+	base_radix = min(n, 128)
 
 	numR = 0
 	N = n
-	while N > baseRadix:
-		N /= baseRadix
+	while N > base_radix:
+		N /= base_radix
 		numR += 1
 
 	radix = []
 	for i in range(numR):
-		radix.append(baseRadix)
+		radix.append(base_radix)
 
 	radix.append(N)
 	numR += 1
@@ -121,53 +121,53 @@ def getGlobalRadixInfo(n):
 
 	return radix, R1, R2
 
-def getPadding(numWorkItemsPerXForm, Nprev, numWorkItemsReq, numXFormsPerWG, Nr, numBanks):
+def getPadding(threads_per_xform, Nprev, threads_req, xforms_per_block, Nr, num_banks):
 
-	if numWorkItemsPerXForm <= Nprev or Nprev >= numBanks:
+	if threads_per_xform <= Nprev or Nprev >= num_banks:
 		offset = 0
 	else:
-		numRowsReq = (numWorkItemsPerXForm if numWorkItemsPerXForm < numBanks else numBanks) / Nprev
+		numRowsReq = (threads_per_xform if threads_per_xform < num_banks else num_banks) / Nprev
 		numColsReq = 1
 		if numRowsReq > Nr:
 			numColsReq = numRowsReq / Nr
 		numColsReq = Nprev * numColsReq
 		offset = numColsReq
 
-	if numWorkItemsPerXForm >= numBanks or numXFormsPerWG == 1:
+	if threads_per_xform >= num_banks or xforms_per_block == 1:
 		midPad = 0
 	else:
-		bankNum = ( (numWorkItemsReq + offset) * Nr ) & (numBanks - 1)
-		if bankNum >= numWorkItemsPerXForm:
+		bankNum = ((threads_req + offset) * Nr) & (num_banks - 1)
+		if bankNum >= threads_per_xform:
 			midPad = 0
 		else:
 			# TODO: find out which conditions are necessary to execute this code
-			midPad = numWorkItemsPerXForm - bankNum
+			midPad = threads_per_xform - bankNum
 
-	lMemSize = (numWorkItemsReq + offset) * Nr * numXFormsPerWG + midPad * (numXFormsPerWG - 1)
-	return lMemSize, offset, midPad
+	smem_size = (threads_req + offset) * Nr * xforms_per_block + midPad * (xforms_per_block - 1)
+	return smem_size, offset, midPad
 
-def getSharedMemorySize(n, radixArray, numWorkItemsPerXForm, numXFormsPerWG, num_local_mem_banks, min_mem_coalesce_width):
+def getSharedMemorySize(n, radix_array, threads_per_xform, xforms_per_block, num_local_mem_banks, min_mem_coalesce_width):
 
-	lMemSize = 0
+	smem_size = 0
 
 	# from insertGlobal(Loads/Stores)AndTranspose
-	if numWorkItemsPerXForm < min_mem_coalesce_width:
-		lMemSize = max(lMemSize, (n + numWorkItemsPerXForm) * numXFormsPerWG)
+	if threads_per_xform < min_mem_coalesce_width:
+		smem_size = max(smem_size, (n + threads_per_xform) * xforms_per_block)
 
 	Nprev = 1
 	len_ = n
-	numRadix = len(radixArray)
+	numRadix = len(radix_array)
 	for r in range(numRadix):
 
-		numIter = radixArray[0] / radixArray[r]
-		numWorkItemsReq = n / radixArray[r]
-		Ncurr = Nprev * radixArray[r]
+		numIter = radix_array[0] / radix_array[r]
+		threads_req = n / radix_array[r]
+		Ncurr = Nprev * radix_array[r]
 
 		if r < numRadix - 1:
-			lMemSize_new, offset, midPad = getPadding(numWorkItemsPerXForm, Nprev, numWorkItemsReq, numXFormsPerWG,
-				radixArray[r], num_local_mem_banks)
-			lMemSize = max(lMemSize, lMemSize_new)
+			smem_size_new, offset, midPad = getPadding(threads_per_xform, Nprev, threads_req, xforms_per_block,
+				radix_array[r], num_local_mem_banks)
+			smem_size = max(smem_size, smem_size_new)
 			Nprev = Ncurr
-			len_ = len_ / radixArray[r]
+			len_ = len_ / radix_array[r]
 
-	return lMemSize
+	return smem_size
