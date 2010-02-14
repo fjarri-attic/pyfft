@@ -118,6 +118,7 @@ def testPerformance(x, y=None, z=None):
 	start = cuda.Event()
 	stop = cuda.Event()
 
+	plan.execute(a_gpu, b_gpu, batch=batch) # warming up
 	start.record()
 	for i in xrange(iterations):
 		plan.execute(a_gpu, b_gpu, batch=batch)
@@ -125,6 +126,7 @@ def testPerformance(x, y=None, z=None):
 	stop.synchronize()
 	t_pycudafft = stop.time_since(start) / 1000.0 / iterations # in seconds
 
+	cufft_plan.execute(a_gpu, b_gpu) # warming up
 	start.record()
 	for i in xrange(iterations):
 		cufft_plan.execute(a_gpu, b_gpu)
