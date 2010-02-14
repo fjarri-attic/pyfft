@@ -696,39 +696,39 @@ extern "C" {
 
 </%def>
 
-<%def name="globalKernel(scalar, complex, split, pass_num, kernel_name, radix_arr, num_passes, shared_mem, R1Arr, \
-	R2Arr, Rinit, batch_size, BS, vertBS, vertical, max_block_size, n, N, log2, getPadding)">
+<%def name="globalKernel(scalar, complex, split, pass_num, kernel_name, radix_arr, num_passes, shared_mem, radix1_arr, \
+	radix2_arr, radix_init, batch_size, horiz_bs, vert_bs, vertical, max_block_size, n, curr_n, log2, getPadding)">
 
 ${insertBaseKernels(scalar, complex)}
 
 extern "C" {
 	<%
 		radix = radix_arr[pass_num]
-		R1 = R1Arr[pass_num]
-		R2 = R2Arr[pass_num]
+		radix1 = radix1_arr[pass_num]
+		radix2 = radix2_arr[pass_num]
 
-		strideI = Rinit
+		stride_in = radix_init
 		for i in range(num_passes):
 			if i != pass_num:
-				strideI *= radix_arr[i]
+				stride_in *= radix_arr[i]
 
-		strideO = Rinit
+		stride_out = radix_init
 		for i in range(pass_num):
-			strideO *= radix_arr[i]
+			stride_out *= radix_arr[i]
 
-		threads_per_xform = R2
+		threads_per_xform = radix2
 		block_size = batch_size * threads_per_xform
 		block_size = min(block_size, max_block_size)
 
-		num_iter = R1 / R2
-		gInInc = block_size / batch_size
-		lgStrideO = log2(strideO)
-		blocks_per_xform = strideI / batch_size
+		num_iter = radix1 / radix2
+		input_multiplier = block_size / batch_size
+		log2_stride_out = log2(stride_out)
+		blocks_per_xform = stride_in / batch_size
 		num_blocks = blocks_per_xform
 		if not vertical:
-			num_blocks *= BS
+			num_blocks *= horiz_bs
 		else:
-			num_blocks *= vertBS
+			num_blocks *= vert_bs
 
 		m = log2(n)
 	%>
@@ -751,7 +751,7 @@ extern "C" {
 
 		// need to fill a[] with zeros, because otherwise nvcc crashes
 		// (it considers a[] not initialized)
-		${complex} a[${R1}] = {${', '.join(['0'] * R1 * 2)}};
+		${complex} a[${radix1}] = {${', '.join(['0'] * radix1 * 2)}};
 
 		int thread_id = threadIdx.x;
 		int block_id = blockIdx.x + blockIdx.y * gridDim.x;
@@ -759,27 +759,27 @@ extern "C" {
 		%if vertical:
 			x_num = block_id >> ${log2(blocks_per_xform)};
 			block_id = block_id & ${blocks_per_xform - 1};
-			index_in = mad24(block_id, ${batch_size}, x_num << ${log2(n * BS)});
+			index_in = mad24(block_id, ${batch_size}, x_num << ${log2(n * horiz_bs)});
 			tid = mul24(block_id, ${batch_size});
-			i = tid >> ${lgStrideO};
-			j = tid & ${strideO - 1};
+			i = tid >> ${log2_stride_out};
+			j = tid & ${stride_out - 1};
 			<%
-				stride = radix * Rinit
+				stride = radix * radix_init
 				for i in range(pass_num):
 					stride *= radix_arr[i]
 			%>
-			index_out = mad24(i, ${stride}, j + (x_num << ${log2(n*BS)}));
+			index_out = mad24(i, ${stride}, j + (x_num << ${log2(n*horiz_bs)}));
 			b_num = block_id;
 		%else:
-			<% lgNumBlocksPerXForm = log2(blocks_per_xform) %>
+			<% log2_blocks_per_xform = log2(blocks_per_xform) %>
 			b_num = block_id & ${blocks_per_xform - 1};
-			x_num = block_id >> ${lgNumBlocksPerXForm};
+			x_num = block_id >> ${log2_blocks_per_xform};
 			index_in = mul24(b_num, ${batch_size});
 			tid = index_in;
-			i = tid >> ${lgStrideO};
-			j = tid & ${strideO - 1};
+			i = tid >> ${log2_stride_out};
+			j = tid & ${stride_out - 1};
 			<%
-				stride = radix*Rinit
+				stride = radix*radix_init
 				for i in range(pass_num):
 					stride *= radix_arr[i]
 			%>
@@ -789,32 +789,32 @@ extern "C" {
 		%endif
 
 		## Load Data
-		<% lgBatchSize = log2(batch_size) %>
+		<% log2_batch_size = log2(batch_size) %>
 		tid = thread_id;
 		i = tid & ${batch_size - 1};
-		j = tid >> ${lgBatchSize};
-		index_in += mad24(j, ${strideI}, i);
+		j = tid >> ${log2_batch_size};
+		index_in += mad24(j, ${stride_in}, i);
 
 		%if split:
 			in_real += index_in;
 			in_imag += index_in;
 			%for comp, part in (('x', 'real'), ('y', 'imag')):
-				%for j in range(R1):
-					a[${j}].${comp} = in_${part}[${j * gInInc * strideI}];
+				%for j in range(radix1):
+					a[${j}].${comp} = in_${part}[${j * input_multiplier * stride_in}];
 				%endfor
 			%endfor
 		%else:
 			in += index_in;
-			%for j in range(R1):
-				a[${j}] = in[${j * gInInc * strideI}];
+			%for j in range(radix1):
+				a[${j}] = in[${j * input_multiplier * stride_in}];
 			%endfor
 		%endif
 
-		fftKernel${R1}(a, dir);
+		fftKernel${radix1}(a, dir);
 
-		%if R2 > 1:
+		%if radix2 > 1:
 			## twiddle
-			%for k in range(1, R1):
+			%for k in range(1, radix1):
 				ang = dir * ((${scalar})2 * M_PI * ${k} / ${radix}) * j;
 				## TODO: use native cos and sin (as OpenCL implementation did)
 				w = complex_ctr(cos(ang), sin(ang));
@@ -822,37 +822,37 @@ extern "C" {
 			%endfor
 
 			## shuffle
-			<% num_iter = R1 / R2 %>
+			<% num_iter = radix1 / radix2 %>
 			index_in = mad24(j, ${block_size * num_iter}, i);
 			smem_store_index = tid;
 			smem_load_index = index_in;
 
 			%for comp in ('x', 'y'):
-				%for k in range(R1):
+				%for k in range(radix1):
 					smem[smem_store_index + ${k * block_size}] = a[${k}].${comp};
 				%endfor
 				__syncthreads();
 
 				%for k in range(num_iter):
-					%for t in range(R2):
-						a[${k * R2 + t}].${comp} = smem[smem_load_index + ${t * batch_size + k * block_size}];
+					%for t in range(radix2):
+						a[${k * radix2 + t}].${comp} = smem[smem_load_index + ${t * batch_size + k * block_size}];
 					%endfor
 				%endfor
 				__syncthreads();
 			%endfor
 
 			%for j in range(num_iter):
-				fftKernel${R2}(a + ${j * R2}, dir);
+				fftKernel${radix2}(a + ${j * radix2}, dir);
 			%endfor
 		%endif
 
 		## twiddle
 		%if pass_num < num_passes - 1:
-			l = ((b_num << ${lgBatchSize}) + i) >> ${lgStrideO};
-			k = j << ${log2(R1 / R2)};
-			ang1 = dir * ((${scalar})2 * M_PI / ${N}) * l;
-			%for t in range(R1):
-				ang = ang1 * (k + ${(t % R2) * R1 + (t / R2)});
+			l = ((b_num << ${log2_batch_size}) + i) >> ${log2_stride_out};
+			k = j << ${log2(radix1 / radix2)};
+			ang1 = dir * ((${scalar})2 * M_PI / ${curr_n}) * l;
+			%for t in range(radix1):
+				ang = ang1 * (k + ${(t % radix2) * radix1 + (t / radix2)});
 				## TODO: use native cos and sin (as OpenCL implementation did)
 				w = complex_ctr(cos(ang), sin(ang));
 				a[${t}] = a[${t}] * w;
@@ -860,19 +860,19 @@ extern "C" {
 		%endif
 
 		## Store Data
-		%if strideO == 1:
-			smem_store_index = mad24(i, ${radix + 1}, j << ${log2(R1 / R2)});
+		%if stride_out == 1:
+			smem_store_index = mad24(i, ${radix + 1}, j << ${log2(radix1 / radix2)});
 			smem_load_index = mad24(tid >> ${log2(radix)}, ${radix + 1}, tid & ${radix - 1});
 
 			%for comp in ('x', 'y'):
-				%for i in range(R1 / R2):
-					%for j in range(R2):
-						smem[smem_store_index + ${i + j * R1}] = a[${i * R2 + j}].${comp};
+				%for i in range(radix1 / radix2):
+					%for j in range(radix2):
+						smem[smem_store_index + ${i + j * radix1}] = a[${i * radix2 + j}].${comp};
 					%endfor
 				%endfor
 				__syncthreads();
 
-				%for i in range(R1):
+				%for i in range(radix1):
 					a[${i}].${comp} = smem[smem_load_index + ${i * (radix + 1) * (block_size / radix)}];
 				%endfor
 				__syncthreads();
@@ -885,30 +885,30 @@ extern "C" {
 				out_imag += index_out;
 
 				%for comp, part in (('x', 'real'), ('y', 'imag')):
-					%for k in range(R1):
+					%for k in range(radix1):
 						out_${part}[${k * block_size}] = a[${k}].${comp};
 					%endfor
 				%endfor
 			%else:
 				out += index_out;
-				%for k in range(R1):
+				%for k in range(radix1):
 					out[${k * block_size}] = a[${k}];
 				%endfor
 			%endif
 		%else:
-			index_out += mad24(j, ${num_iter * strideO}, i);
+			index_out += mad24(j, ${num_iter * stride_out}, i);
 			%if split:
 				out_real += index_out;
 				out_imag += index_out;
 				%for comp, part in (('x', 'real'), ('y', 'imag')):
-					%for k in range(R1):
-						out_${part}[${((k % R2) * R1 + (k / R2)) * strideO}] = a[${k}].${comp};
+					%for k in range(radix1):
+						out_${part}[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] = a[${k}].${comp};
 					%endfor
 				%endfor
 			%else:
 				out += index_out;
-				%for k in range(R1):
-					out[${((k % R2) * R1 + (k / R2)) * strideO}] = a[${k}];
+				%for k in range(radix1):
+					out[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] = a[${k}];
 				%endfor
 			%endif
 		%endif
