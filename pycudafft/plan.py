@@ -4,6 +4,8 @@ from pycuda.driver import device_attribute
 from pycuda.gpuarray import GPUArray
 import pycuda.driver as cuda
 
+import numpy
+
 from kernel import *
 
 _FFT_1D = 1
@@ -12,7 +14,7 @@ _FFT_3D = 3
 
 class FFTPlan:
 
-	def __init__(self, x, y=None, z=None, split=False):
+	def __init__(self, x, y=None, z=None, split=False, dtype=numpy.complex64):
 
 		# TODO: check that dimensions are the power of two
 		if z is None:
@@ -28,6 +30,13 @@ class FFTPlan:
 				self.x = x
 				self.y = 1 if y is None else y
 				self.z = 1 if z is None else z
+
+		if dtype == numpy.complex64:
+			self.scalar = 'float'
+			self.complex = 'float2'
+			self.dtype = dtype
+		else:
+			raise Exception("Wrong data type: " + str(dtype))
 
 		self.split = split
 		self.n = _Dim(x, y, z)
@@ -117,8 +126,7 @@ class FFTPlan:
 
 		if self.temp_buffer_needed and self.last_batch_size != batch:
 			self.last_batch_size = batch
-			# TODO: remove hardcoded '2 * 4' when adding support for different types
-			self.tempmemobj = cuda.mem_alloc(self.n.x * self.n.y * self.n.z * batch * 2 * 4)
+			self.tempmemobj = cuda.mem_alloc(self.n.x * self.n.y * self.n.z * batch * self.dtype().nbytes)
 
 		mem_objs = (data_in, data_out, self.tempmemobj)
 
@@ -186,9 +194,8 @@ class FFTPlan:
 
 		if self.temp_buffer_needed and self.last_batch_size != batch:
 			self.last_batch_size = batch
-			# TODO: remove hardcoded '4' when adding support for different types
-			self.tempmemobj_re = cuda.mem_alloc(self.n.x * self.n.y * self.n.z * batch * 4)
-			self.tempmemobj_im = cuda.mem_alloc(self.n.x * self.n.y * self.n.z * batch * 4)
+			self.tempmemobj_re = cuda.mem_alloc(self.n.x * self.n.y * self.n.z * batch * self.dtype().nbytes / 2)
+			self.tempmemobj_im = cuda.mem_alloc(self.n.x * self.n.y * self.n.z * batch * self.dtype().nbytes / 2)
 
 		mem_objs_re = (data_in_re, data_out_re, self.tempmemobj_re)
 		mem_objs_im = (data_in_im, data_out_im, self.tempmemobj_im)

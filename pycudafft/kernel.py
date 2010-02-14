@@ -28,6 +28,9 @@ class _FFTKernel:
 
 		self.previous_batch = None
 
+		self.scalar = plan.scalar
+		self.complex = plan.complex
+
 	def compile(self, max_block_size):
 		self.module = None
 		self.func_ref = None
@@ -129,8 +132,8 @@ class LocalFFTKernel(_FFTKernel):
 			self.num_smem_banks, self.min_mem_coalesce_width)
 
 		return _template.get_def("localKernel").render(
-			scalar='float',
-			complex='float2',
+			scalar=self.scalar,
+			complex=self.complex,
 			split=self.split,
 			kernel_name=self.kernel_name,
 			shared_mem=smem_size,
@@ -219,7 +222,7 @@ class GlobalFFTKernel(_FFTKernel):
 		self.calculated_batch_size = batch_size
 
 		return _template.get_def("globalKernel").render(
-			scalar="float", complex="float2",
+			scalar=self.scalar, complex=self.complex,
 			split=self.split,
 			pass_num=self.pass_num,
 			kernel_name=self.kernel_name,
