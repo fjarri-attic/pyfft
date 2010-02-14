@@ -620,7 +620,7 @@
 </%def>
 
 <%def name="localKernel(scalar, complex, split, kernel_name, shared_mem, threads_per_xform, xforms_per_block, \
-	min_mem_coalesce_width, radix_arr, n, num_local_mem_banks, log2, getPadding)">
+	min_mem_coalesce_width, radix_arr, n, num_smem_banks, log2, getPadding)">
 
 	<% max_radix = radix_arr[0] %>
 
@@ -673,7 +673,7 @@ extern "C" {
 			${insertTwiddleKernel(radix_arr[r], num_iter, radix_prev, data_len, threads_per_xform, scalar)}
 			<%
 				lMemSize, offset, mid_pad = getPadding(threads_per_xform, radix_prev, threads_req,
-					xforms_per_block, radix_arr[r], num_local_mem_banks)
+					xforms_per_block, radix_arr[r], num_smem_banks)
 			%>
 			${insertLocalStoreIndexArithmatic(threads_req, xforms_per_block, radix_arr[r], offset, mid_pad)}
 			${insertLocalLoadIndexArithmetic(radix_prev, radix_arr[r], threads_req, threads_per_xform, xforms_per_block, offset, mid_pad)}

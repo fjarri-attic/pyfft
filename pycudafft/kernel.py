@@ -14,55 +14,54 @@ class cl_fft_kernel_info:
 	def __init__(self):
 		self.module = None
 		self.kernel_name = ""
-		self.lmem_size = 0
-		self.num_workgroups = 0
-		self.num_workitems_per_workgroup = 0
-		self.cl_fft_kernel_dir = None
+		self.smem_size = 0
+		self.blocks_num = 0
+		self.block_size = 0
 		self.in_place_possible = None
 		self.kernel_string = None
 
 def createLocalMemfftKernelString(plan, split):
 
 	n = plan.n.x
-	assert n <= plan.max_work_item_per_workgroup * plan.max_radix, "signal lenght too big for local mem fft"
+	assert n <= plan.max_block_size * plan.max_radix, "signal lenght too big for local mem fft"
 
 	radix_array = getRadixArray(n, 0)
-	if n / radix_array[0] > plan.max_work_item_per_workgroup:
+	if n / radix_array[0] > plan.max_block_size:
 		radix_array = getRadixArray(n, plan.max_radix)
 
 	assert radix_array[0] <= plan.max_radix, "max radix choosen is greater than allowed"
-	assert n / radix_array[0] <= plan.max_work_item_per_workgroup, \
+	assert n / radix_array[0] <= plan.max_block_size, \
 		"required work items per xform greater than maximum work items allowed per work group for local mem fft"
 
 	kinfo = cl_fft_kernel_info()
-	kinfo.num_workgroups = 0
-	kinfo.num_workitems_per_workgroup = 0
+	kinfo.blocks_num = 0
+	kinfo.block_size = 0
 	kinfo.dir = X_DIRECTION
 	kinfo.in_place_possible = True
 	kinfo.kernel_name = "fft"
 
 	threads_per_xform = n / radix_array[0]
 	numWorkItemsPerWG = 64 if threads_per_xform <= 64 else threads_per_xform
-	assert numWorkItemsPerWG <= plan.max_work_item_per_workgroup
+	assert numWorkItemsPerWG <= plan.max_block_size
 	xforms_per_block = numWorkItemsPerWG / threads_per_xform
-	kinfo.num_workgroups = xforms_per_block
-	kinfo.num_workitems_per_workgroup = numWorkItemsPerWG
+	kinfo.blocks_num = xforms_per_block
+	kinfo.block_size = numWorkItemsPerWG
 
-	kinfo.lmem_size = getSharedMemorySize(n, radix_array, threads_per_xform, xforms_per_block,
-		plan.num_local_mem_banks, plan.min_mem_coalesce_width)
+	kinfo.smem_size = getSharedMemorySize(n, radix_array, threads_per_xform, xforms_per_block,
+		plan.num_smem_banks, plan.min_mem_coalesce_width)
 
 	kinfo.kernel_string = _template.get_def("localKernel").render(
 		scalar='float',
 		complex='float2',
 		split=split,
 		kernel_name=kinfo.kernel_name,
-		shared_mem=kinfo.lmem_size,
+		shared_mem=kinfo.smem_size,
 		threads_per_xform=threads_per_xform,
 		xforms_per_block=xforms_per_block,
 		min_mem_coalesce_width=plan.min_mem_coalesce_width,
 		radix_arr=radix_array,
 		n=n,
-		num_local_mem_banks=plan.num_local_mem_banks,
+		num_smem_banks=plan.num_smem_banks,
 		log2=log2,
 		getPadding=getPadding)
 
@@ -70,7 +69,7 @@ def createLocalMemfftKernelString(plan, split):
 
 def createGlobalFFTKernelString(plan, n, horiz_bs, dir, vert_bs, split):
 
-	max_block_size = plan.max_work_item_per_workgroup
+	max_block_size = plan.max_block_size
 	max_array_len = plan.max_radix
 	batch_size = plan.min_mem_coalesce_width
 	vertical = False if dir == X_DIRECTION else True
@@ -101,7 +100,7 @@ def createGlobalFFTKernelString(plan, n, horiz_bs, dir, vert_bs, split):
 			stride_out *= radix_arr[i]
 
 		threadsPerXForm = radix2
-		batch_size = plan.max_work_item_per_workgroup if radix2 == 1 else batch_size
+		batch_size = plan.max_block_size if radix2 == 1 else batch_size
 		batch_size = min(batch_size, stride_in)
 		block_size = batch_size * threadsPerXForm
 		block_size = min(block_size, max_block_size)
@@ -124,15 +123,15 @@ def createGlobalFFTKernelString(plan, n, horiz_bs, dir, vert_bs, split):
 		kinfo = cl_fft_kernel_info()
 		kinfo.kernel = 0
 		if radix2 == 1:
-			kinfo.lmem_size = 0
+			kinfo.smem_size = 0
 		else:
 			if stride_out == 1:
-				kinfo.lmem_size = (radix + 1) * batch_size
+				kinfo.smem_size = (radix + 1) * batch_size
 			else:
-				kinfo.lmem_size = block_size * radix1
+				kinfo.smem_size = block_size * radix1
 
-		kinfo.num_workgroups = num_blocks
-		kinfo.num_workitems_per_workgroup = block_size
+		kinfo.blocks_num = num_blocks
+		kinfo.block_size = block_size
 		kinfo.dir = dir
 		if pass_num == num_passes - 1 and num_passes % 2 == 1:
 			kinfo.in_place_possible = True
@@ -148,7 +147,7 @@ def createGlobalFFTKernelString(plan, n, horiz_bs, dir, vert_bs, split):
 			kernel_name=kernel_name,
 			radix_arr=radix_arr,
 			num_passes=num_passes,
-			shared_mem=kinfo.lmem_size,
+			shared_mem=kinfo.smem_size,
 			radix1_arr=radix1_arr,
 			radix2_arr=radix2_arr,
 			radix_init=radix_init,
@@ -174,15 +173,15 @@ def FFT1D(plan, dir):
 	kernels = []
 
 	if dir == X_DIRECTION:
-		if plan.n.x > plan.max_localmem_fft_size:
+		if plan.n.x > plan.max_smem_fft_size:
 			kernels.extend(createGlobalFFTKernelString(plan, plan.n.x, 1, X_DIRECTION, 1, plan.split))
 		elif plan.n.x > 1:
 			radix_array = getRadixArray(plan.n.x, 0)
-			if plan.n.x / radix_array[0] <= plan.max_work_item_per_workgroup:
+			if plan.n.x / radix_array[0] <= plan.max_block_size:
 				kernels.append(createLocalMemfftKernelString(plan, plan.split))
 			else:
 				radix_array = getRadixArray(plan.n.x, plan.max_radix)
-				if plan.n.x / radix_array[0] <= plan.max_work_item_per_workgroup:
+				if plan.n.x / radix_array[0] <= plan.max_block_size:
 					kernels.append(createLocalMemfftKernelString(plan, plan.split))
 				else:
 					# TODO: find out which conditions are necessary to execute this code
