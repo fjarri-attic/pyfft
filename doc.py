@@ -79,7 +79,7 @@ Class, containing precalculated FFT plan.
 ``x``, ``y``, ``z``:
   Problem size. If ``z`` and/or ``y`` are not defined, 2D or 1D plan will be created.
 
-  **Warning**: 2D and 3D plans with ``y``=1 or ``z``=1 are not supported at the moment.
+  **Warning**: 2D and 3D plans with ``y`` == 1 or ``z`` == 1 are not supported at the moment.
 
 ``split``:
   If ``True``, the plan will support separate data arrays with real and imaginary parts
@@ -109,7 +109,7 @@ Execute plan for interleaved data arrays.
   Number of data sets to process. They should be located successively in ``data_in``.
 
 FFTPlan.executeSplit()
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
 Execute plan for split data arrays.
 
