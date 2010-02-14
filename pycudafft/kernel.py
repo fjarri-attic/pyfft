@@ -132,19 +132,10 @@ class LocalFFTKernel(_FFTKernel):
 			self.num_smem_banks, self.min_mem_coalesce_width)
 
 		return _template.get_def("localKernel").render(
-			scalar=self.scalar,
-			complex=self.complex,
-			split=self.split,
-			kernel_name=self.kernel_name,
-			shared_mem=smem_size,
-			threads_per_xform=threads_per_xform,
-			xforms_per_block=xforms_per_block,
-			min_mem_coalesce_width=self.min_mem_coalesce_width,
-			radix_arr=radix_array,
-			n=n,
-			num_smem_banks=self.num_smem_banks,
-			log2=log2,
-			getPadding=getPadding)
+			self.scalar, self.complex, self.split, self.kernel_name,
+			n, radix_array, smem_size, threads_per_xform, xforms_per_block,
+			self.min_mem_coalesce_width, self.num_smem_banks,
+			log2=log2, getPadding=getPadding)
 
 
 class GlobalFFTKernel(_FFTKernel):
@@ -163,7 +154,6 @@ class GlobalFFTKernel(_FFTKernel):
 
 		batch_size = self.batch_size
 
-		max_array_len = self.max_radix
 		vertical = False if self.dir == X_DIRECTION else True
 
 		radix_arr, radix1_arr, radix2_arr = getGlobalRadixInfo(self.n)
@@ -193,7 +183,7 @@ class GlobalFFTKernel(_FFTKernel):
 		batch_size = self.block_size / threads_per_xform
 		assert radix2 <= radix1
 		assert radix1 * radix2 == radix
-		assert radix1 <= max_array_len
+		assert radix1 <= self.max_radix
 
 		numIter = radix1 / radix2
 
@@ -222,26 +212,11 @@ class GlobalFFTKernel(_FFTKernel):
 		self.calculated_batch_size = batch_size
 
 		return _template.get_def("globalKernel").render(
-			scalar=self.scalar, complex=self.complex,
-			split=self.split,
-			pass_num=self.pass_num,
-			kernel_name=self.kernel_name,
-			radix_arr=radix_arr,
-			num_passes=num_passes,
-			shared_mem=self.smem_size,
-			radix1_arr=radix1_arr,
-			radix2_arr=radix2_arr,
-			radix_init=radix_init,
-			batch_size=batch_size,
-			horiz_bs=self.horiz_bs,
-			vert_bs=self.vert_bs,
-			vertical=vertical,
-			max_block_size=max_block_size,
-			n=self.n,
-			curr_n=self.curr_n,
-			log2=log2,
-			getPadding=getPadding
-			)
+			self.scalar, self.complex, self.split, self.kernel_name,
+			self.n, self.curr_n, self.pass_num,
+			self.smem_size, batch_size,
+			self.horiz_bs, self.vert_bs, vertical, max_block_size,
+			log2=log2, getGlobalRadixInfo=getGlobalRadixInfo)
 
 	@staticmethod
 	def createChain(plan, n, horiz_bs, dir, vert_bs):

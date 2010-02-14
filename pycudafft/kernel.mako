@@ -619,8 +619,8 @@
 	%endif
 </%def>
 
-<%def name="localKernel(scalar, complex, split, kernel_name, shared_mem, threads_per_xform, xforms_per_block, \
-	min_mem_coalesce_width, radix_arr, n, num_smem_banks, log2, getPadding)">
+<%def name="localKernel(scalar, complex, split, kernel_name, n, radix_arr, shared_mem, \
+	threads_per_xform, xforms_per_block, min_mem_coalesce_width, num_smem_banks)">
 
 	<% max_radix = radix_arr[0] %>
 
@@ -696,13 +696,19 @@ extern "C" {
 
 </%def>
 
-<%def name="globalKernel(scalar, complex, split, pass_num, kernel_name, radix_arr, num_passes, shared_mem, radix1_arr, \
-	radix2_arr, radix_init, batch_size, horiz_bs, vert_bs, vertical, max_block_size, n, curr_n, log2, getPadding)">
+<%def name="globalKernel(scalar, complex, split, kernel_name, n, curr_n, pass_num, shared_mem, \
+	batch_size, horiz_bs, vert_bs, vertical, max_block_size)">
 
 ${insertBaseKernels(scalar, complex)}
 
 extern "C" {
 	<%
+		radix_arr, radix1_arr, radix2_arr = getGlobalRadixInfo(n)
+
+		num_passes = len(radix_arr)
+
+		radix_init = horiz_bs if vertical else 1
+
 		radix = radix_arr[pass_num]
 		radix1 = radix1_arr[pass_num]
 		radix2 = radix2_arr[pass_num]
@@ -716,19 +722,12 @@ extern "C" {
 		for i in range(pass_num):
 			stride_out *= radix_arr[i]
 
-		threads_per_xform = radix2
-		block_size = batch_size * threads_per_xform
-		block_size = min(block_size, max_block_size)
+		block_size = min(batch_size * radix2, max_block_size)
 
 		num_iter = radix1 / radix2
 		input_multiplier = block_size / batch_size
 		log2_stride_out = log2(stride_out)
 		blocks_per_xform = stride_in / batch_size
-		num_blocks = blocks_per_xform
-		if not vertical:
-			num_blocks *= horiz_bs
-		else:
-			num_blocks *= vert_bs
 
 		m = log2(n)
 	%>
@@ -823,7 +822,6 @@ extern "C" {
 			%endfor
 
 			## shuffle
-			<% num_iter = radix1 / radix2 %>
 			index_in = mad24(j, ${block_size * num_iter}, i);
 			smem_store_index = tid;
 			smem_load_index = index_in;
