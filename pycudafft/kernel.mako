@@ -756,8 +756,10 @@ extern "C" {
 		int thread_id = threadIdx.x;
 		int block_id = blockIdx.x + blockIdx.y * gridDim.x;
 
+		<% log2_blocks_per_xform = log2(blocks_per_xform) %>
+
 		%if vertical:
-			x_num = block_id >> ${log2(blocks_per_xform)};
+			x_num = block_id >> ${log2_blocks_per_xform};
 			block_id = block_id & ${blocks_per_xform - 1};
 			index_in = mad24(block_id, ${batch_size}, x_num << ${log2(n * horiz_bs)});
 			tid = mul24(block_id, ${batch_size});
@@ -771,7 +773,6 @@ extern "C" {
 			index_out = mad24(i, ${stride}, j + (x_num << ${log2(n*horiz_bs)}));
 			b_num = block_id;
 		%else:
-			<% log2_blocks_per_xform = log2(blocks_per_xform) %>
 			b_num = block_id & ${blocks_per_xform - 1};
 			x_num = block_id >> ${log2_blocks_per_xform};
 			index_in = mul24(b_num, ${batch_size});
