@@ -14,7 +14,7 @@ _FFT_3D = 3
 
 class FFTPlan:
 
-	def __init__(self, x, y=None, z=None, split=False, dtype=numpy.complex64):
+	def __init__(self, x, y=None, z=None, split=False, dtype=numpy.complex64, mempool=None):
 
 		# TODO: check that dimensions are the power of two
 		if z is None:
@@ -37,6 +37,11 @@ class FFTPlan:
 			self.dtype = dtype
 		else:
 			raise Exception("Wrong data type: " + str(dtype))
+
+		if mempool is None:
+			self.allocate = cuda.mem_alloc
+		else:
+			self.allocate = mempool.allocate
 
 		self.split = split
 		self.n = _Dim(x, y, z)
@@ -126,7 +131,7 @@ class FFTPlan:
 
 		if self.temp_buffer_needed and self.last_batch_size != batch:
 			self.last_batch_size = batch
-			self.tempmemobj = cuda.mem_alloc(self.n.x * self.n.y * self.n.z * batch * self.dtype().nbytes)
+			self.tempmemobj = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.dtype().nbytes)
 
 		mem_objs = (data_in, data_out, self.tempmemobj)
 
@@ -194,8 +199,8 @@ class FFTPlan:
 
 		if self.temp_buffer_needed and self.last_batch_size != batch:
 			self.last_batch_size = batch
-			self.tempmemobj_re = cuda.mem_alloc(self.n.x * self.n.y * self.n.z * batch * self.dtype().nbytes / 2)
-			self.tempmemobj_im = cuda.mem_alloc(self.n.x * self.n.y * self.n.z * batch * self.dtype().nbytes / 2)
+			self.tempmemobj_re = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.dtype().nbytes / 2)
+			self.tempmemobj_im = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.dtype().nbytes / 2)
 
 		mem_objs_re = (data_in_re, data_out_re, self.tempmemobj_re)
 		mem_objs_im = (data_in_im, data_out_im, self.tempmemobj_im)
