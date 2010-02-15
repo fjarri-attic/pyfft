@@ -53,7 +53,7 @@ Now, let's prepare simple test array and try to execute plan over it:
       0.+0.j    0.+0.j]]
 
 As expected, we got array with the first non-zero element, equal to array size.
-Let's now perform the inverse transform. Notice the normalization.
+Let's now perform the inverse transform. Note the normalization.
 
  >>> plan.execute(gpu_data, inverse=True)
  >>> result = gpu_data.get() / data.size
