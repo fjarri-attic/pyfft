@@ -53,14 +53,14 @@ Now, let's prepare simple test array and try to execute plan over it:
       0.+0.j    0.+0.j]]
 
 As expected, we got array with the first non-zero element, equal to array size.
-Let's now perform the inverse transform.
+Let's now perform the inverse transform. Notice the normalization.
 
  >>> plan.execute(gpu_data, inverse=True)
- >>> result = gpu_data.get()
+ >>> result = gpu_data.get() / data.size
 
 Since data is non-integer, we cannot simply compare it. We will just calculate error instead.
 
- >>> error = numpy.sum(numpy.abs(data) - numpy.abs(result)) / 256
+ >>> error = numpy.abs(numpy.sum(numpy.abs(data) - numpy.abs(result)) / data.size)
  >>> error < 1e-6
  True
 
