@@ -1,1 +1,1 @@
-from plan import FFTPlan
+from plan import FFTPlan, SINGLE_PRECISION

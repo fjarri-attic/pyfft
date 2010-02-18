@@ -3,6 +3,7 @@ from pycuda.compiler import SourceModule
 from pycuda.driver import device_attribute
 from pycuda.gpuarray import GPUArray
 import pycuda.driver as cuda
+from pycuda.tools import DeviceData
 
 import numpy
 
@@ -12,9 +13,11 @@ _FFT_1D = 1
 _FFT_2D = 2
 _FFT_3D = 3
 
+SINGLE_PRECISION = 0
+
 class FFTPlan:
 
-	def __init__(self, x, y=None, z=None, split=False, dtype=numpy.complex64, mempool=None):
+	def __init__(self, x, y=None, z=None, split=False, precision=SINGLE_PRECISION, mempool=None):
 
 		# TODO: check that dimensions are the power of two
 		if z is None:
@@ -31,31 +34,36 @@ class FFTPlan:
 				self.y = 1 if y is None else y
 				self.z = 1 if z is None else z
 
-		if dtype == numpy.complex64:
+		if precision == SINGLE_PRECISION:
 			self.scalar = 'float'
 			self.complex = 'float2'
-			self.dtype = dtype
+			self.scalar_nbytes = 4
+			self.complex_nbytes = 8
 		else:
-			raise Exception("Wrong data type: " + str(dtype))
+			raise ValueError("Precision is not supported: " + str(precision))
 
 		if mempool is None:
 			self.allocate = cuda.mem_alloc
 		else:
 			self.allocate = mempool.allocate
 
-		self.split = split
-		self.n = _Dim(x, y, z)
-		self.temp_buffer_needed = False
-		self.last_batch_size = 0
 		self.tempmemobj = None
 		self.tempmemobj_re = None
 		self.tempmemobj_im = None
+
+		self.split = split
+		self.n = _Dim(x, y, z)
+		self.last_batch_size = 0
 		self.max_smem_fft_size = 2048
 		self.max_radix = 16
-		self.min_mem_coalesce_width = 16
+
+		self.devdata = DeviceData()
+
+		global_memory_word = self.scalar_nbytes if split else self.complex_nbytes
+		self.min_mem_coalesce_width = self.devdata.align_bytes(word_size=global_memory_word) / global_memory_word
 
 		# TODO: get this parameter properly from device instead of calculating it
-		self.num_smem_banks = device.get_attribute(device_attribute.WARP_SIZE) / 2
+		self.num_smem_banks = self.devdata.smem_granularity
 
 		self.max_block_size = device.get_attribute(device_attribute.MAX_BLOCK_DIM_X)
 		self.max_registers = device.get_attribute(device_attribute.MAX_REGISTERS_PER_BLOCK)
@@ -131,7 +139,7 @@ class FFTPlan:
 
 		if self.temp_buffer_needed and self.last_batch_size != batch:
 			self.last_batch_size = batch
-			self.tempmemobj = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.dtype().nbytes)
+			self.tempmemobj = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.complex_nbytes)
 
 		mem_objs = (data_in, data_out, self.tempmemobj)
 
@@ -199,8 +207,8 @@ class FFTPlan:
 
 		if self.temp_buffer_needed and self.last_batch_size != batch:
 			self.last_batch_size = batch
-			self.tempmemobj_re = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.dtype().nbytes / 2)
-			self.tempmemobj_im = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.dtype().nbytes / 2)
+			self.tempmemobj_re = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.scalar_nbytes)
+			self.tempmemobj_im = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.scalar_nbytes)
 
 		mem_objs_re = (data_in_re, data_out_re, self.tempmemobj_re)
 		mem_objs_im = (data_in_im, data_out_im, self.tempmemobj_im)

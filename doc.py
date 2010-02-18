@@ -74,7 +74,7 @@ FFTPlan
 
 Class, containing precalculated FFT plan.
 
-**Arguments**: ``FFTPlan(x, y=None, z=None, split=False, dtype=numpy.complex64, mempool=None)``
+**Arguments**: ``FFTPlan(x, y=None, z=None, split=False, precision=SINGLE_PRECISION, mempool=None)``
 
 ``x``, ``y``, ``z``:
   Problem size. If ``z`` and/or ``y`` are not defined, 2D or 1D plan will be created.
@@ -85,8 +85,8 @@ Class, containing precalculated FFT plan.
   If ``True``, the plan will support separate data arrays with real and imaginary parts
   instead of interleaved arrays.
 
-``dtype``:
-  Data type to use. At the moment only ``complex64`` (single precision) is supported.
+``precision``:
+  Size of data type to use. At the moment only ``SINGLE_PRECISION`` is supported.
 
 ``mempool``:
   If specified, method ``allocate`` of this object will be used to create temporary buffers.
