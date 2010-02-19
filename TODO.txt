@@ -12,5 +12,7 @@ global:
 
 optimizations (only after benchmarks!):
     - replace mad24() with vector function
-    - replace cos() and sin() by faster analogues (if any) - see native_cos() in OpenCL
     - replace indexes with pointer arithmetic if someone answers in thread
+    - recompile kernels in order to increase occupancy
+      (tried it; first - it does not increase speed; second - FFT building code starts to produce buggy kernels
+      for low block sizes)
