@@ -13,6 +13,7 @@ _dir, _file = os.path.split(os.path.abspath(__file__))
 _template = Template(filename=os.path.join(_dir, 'kernel.mako'))
 
 class _FFTKernel:
+	"""Base class for FFT kernels. Handles compilation and execution."""
 
 	def __init__(self, fft_params):
 		self._params = fft_params
@@ -24,18 +25,25 @@ class _FFTKernel:
 		self._func_ref = None
 		max_block_size = max_block_size * 2
 
+		# starting from the maximum available block size, generate and compile kernels
+		# stop when number of registers is less than maximum available for block
 		while max_block_size > self._params.num_smem_banks:
 			max_block_size /= 2
 
+			# Try to generate kernel code. Assertion error means that
+			# given parameters do not allow us to create code;
+			# other errors are not expected and passed further
 			try:
 				kernel_string = self.generate(max_block_size)
 			except AssertionError as e:
 				continue
 
+			# compile and get function pointers
 			module = SourceModule(kernel_string, no_extern_c=True)
 			func_ref_forward = module.get_function(self._kernel_name + "_forward")
 			func_ref_inverse = module.get_function(self._kernel_name + "_inverse")
 
+			# check that number of registers fits GPU
 			if func_ref_forward.num_regs * self._block_size > self._params.max_registers:
 				continue
 
@@ -48,6 +56,8 @@ class _FFTKernel:
 			raise Exception("Failed to find block size for the kernel")
 
 	def prepare(self, batch):
+		"""Prepare function call. Caches prepared functions for repeating batch sizes."""
+
 		if self._previous_batch != batch:
 			self._previous_batch = batch
 			self._batch, self._grid = self._getKernelWorkDimensions(batch)
@@ -60,6 +70,7 @@ class _FFTKernel:
 				self._func_ref_inverse.prepare("PPi", block=(self._block_size, 1, 1))
 
 	def preparedCall(self, data_in, data_out, inverse):
+		"""Call prepared interleaved complex kernel"""
 		if inverse:
 			func_ref = self._func_ref_inverse
 		else:
@@ -68,6 +79,7 @@ class _FFTKernel:
 		func_ref.prepared_call(self._grid, data_in, data_out, self._batch)
 
 	def preparedCallSplit(self, data_in_re, data_in_im, data_out_re, data_out_im, inverse):
+		"""Call prepared split complex kernel"""
 		if inverse:
 			func_ref = self._func_ref_inverse
 		else:
@@ -101,6 +113,7 @@ class _FFTKernel:
 
 
 class LocalFFTKernel(_FFTKernel):
+	"""Generator for 'local' FFT in shared memory"""
 
 	def __init__(self, fft_params, n):
 		_FFTKernel.__init__(self, fft_params)
@@ -139,6 +152,7 @@ class LocalFFTKernel(_FFTKernel):
 
 
 class GlobalFFTKernel(_FFTKernel):
+	"""Generator for 'global' FFT kernel chain."""
 
 	def __init__(self, fft_params, pass_num, n, curr_n, horiz_bs, dir, vert_bs, batch_size):
 		_FFTKernel.__init__(self, fft_params)
