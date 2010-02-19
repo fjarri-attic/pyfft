@@ -256,8 +256,10 @@
 
 			if(!s || (block_id < gridDim.x - 1) || (jj < s))
 			{
-				offset = mad24(mad24(block_id, ${xforms_per_block}, jj), ${n}, ii);
-				${insertGlobalBuffersShift(split)}
+				{
+					int offset = mad24(mad24(block_id, ${xforms_per_block}, jj), ${n}, ii);
+					${insertGlobalBuffersShift(split)}
+				}
 
 			%for i in range(radix):
 				${insertGlobalLoad(i, i * threads_per_xform, split)}
@@ -266,8 +268,11 @@
 		%else:
 			ii = thread_id;
 			jj = 0;
-			offset = mad24(block_id, ${n}, ii);
-			${insertGlobalBuffersShift(split)}
+
+			{
+				int offset = mad24(block_id, ${n}, ii);
+				${insertGlobalBuffersShift(split)}
+			}
 
 			%for i in range(radix):
 				${insertGlobalLoad(i, i * threads_per_xform, split)}
@@ -283,9 +288,12 @@
 		ii = thread_id & ${mem_coalesce_width - 1};
 		jj = thread_id >> ${log2(mem_coalesce_width)};
 		smem_store_index = mad24(jj, ${n + threads_per_xform}, ii);
-		offset = mad24(block_id, ${xforms_per_block}, jj);
-		offset = mad24(offset, ${n}, ii);
-		${insertGlobalBuffersShift(split)}
+
+		{
+			int offset = mad24(block_id, ${xforms_per_block}, jj);
+			offset = mad24(offset, ${n}, ii);
+			${insertGlobalBuffersShift(split)}
+		}
 
 		if((block_id == gridDim.x - 1) && s)
 		{
@@ -332,8 +340,10 @@
 			__syncthreads();
 		%endfor
 	%else:
-		offset = mad24(block_id, ${n * xforms_per_block}, thread_id);
-		${insertGlobalBuffersShift(split)}
+		{
+			int offset = mad24(block_id, ${n * xforms_per_block}, thread_id);
+			${insertGlobalBuffersShift(split)}
+		}
 
 		ii = thread_id & ${n - 1};
 		jj = thread_id >> ${log2(n)};
@@ -662,10 +672,10 @@ extern "C" {
 <%def name="insertVariableDefinitions(scalar, complex)">
 	int i, j, index_in, index_out, tid, x_num, k, l;
 
-	int s, ii, jj, offset;
+	int s, ii, jj;
 	${complex} w;
 
-	${scalar} ang, ang1;
+	${scalar} ang;
 	size_t smem_store_index, smem_load_index;
 	int thread_id = threadIdx.x;
 	int block_id = blockIdx.x + blockIdx.y * gridDim.x;
@@ -879,6 +889,7 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 
 	## twiddle
 	%if pass_num < num_passes - 1:
+		${scalar} ang1;
 		l = ((b_num << ${log2_batch_size}) + i) >> ${log2_stride_out};
 		k = j << ${log2(radix1 / radix2)};
 		ang1 = dir * ((${scalar})2 * M_PI / ${curr_n}) * l;
