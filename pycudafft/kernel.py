@@ -147,12 +147,12 @@ class GlobalFFTKernel(_FFTKernel):
 		self._horiz_bs = horiz_bs
 		self._dir = dir
 		self._vert_bs = vert_bs
-		self._batch_size = batch_size
+		self._starting_batch_size = batch_size
 		self._pass_num = pass_num
 
 	def generate(self, max_block_size):
 
-		batch_size = self._batch_size
+		batch_size = self._starting_batch_size
 
 		vertical = False if self._dir == X_DIRECTION else True
 
@@ -209,7 +209,7 @@ class GlobalFFTKernel(_FFTKernel):
 		else:
 			self.in_place_possible = False
 
-		self.calculated_batch_size = batch_size
+		self._batch_size = batch_size
 
 		return _template.get_def("globalKernel").render(
 			self._params.scalar, self._params.complex, self._params.split, self._kernel_name,
@@ -217,6 +217,11 @@ class GlobalFFTKernel(_FFTKernel):
 			smem_size, batch_size,
 			self._horiz_bs, self._vert_bs, vertical, max_block_size,
 			log2=log2, getGlobalRadixInfo=getGlobalRadixInfo)
+
+	def __get_batch_size(self):
+		return self._batch_size
+
+	batch_size = property(__get_batch_size)
 
 	@staticmethod
 	def createChain(fft_params, n, horiz_bs, dir, vert_bs):
@@ -236,7 +241,7 @@ class GlobalFFTKernel(_FFTKernel):
 		for pass_num in range(num_passes):
 			kernel = GlobalFFTKernel(fft_params, pass_num, n, curr_n, horiz_bs, dir, vert_bs, batch_size)
 			kernel.compile(fft_params.max_block_size)
-			batch_size = kernel.calculated_batch_size
+			batch_size = kernel.batch_size
 
 			curr_n /= radix_arr[pass_num]
 
