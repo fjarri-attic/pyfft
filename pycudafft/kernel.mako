@@ -669,7 +669,16 @@ extern "C" {
 }
 </%def>
 
-<%def name="insertVariableDefinitions(scalar, complex)">
+<%def name="insertVariableDefinitions(scalar, complex, shared_mem, temp_array_size)">
+
+	%if shared_mem > 0:
+		__shared__ ${scalar} smem[${shared_mem}];
+	%endif
+
+	## need to fill a[] with zeros, because otherwise nvcc crashes
+	## (it considers a[] not initialized)
+	${complex} a[${temp_array_size}] = {${', '.join(['0'] * temp_array_size * 2)}};
+
 	int i, j, index_in, index_out, tid, x_num, k, l;
 
 	int s, ii, jj;
@@ -695,15 +704,7 @@ ${insertBaseKernels(scalar, complex)}
 
 ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 {
-	%if shared_mem > 0:
-		__shared__ float smem[${shared_mem}];
-	%endif
-
-	${insertVariableDefinitions(scalar, complex)}
-
-	## need to fill a[] with zeros, because otherwise nvcc crashes
-	## (it considers a[] not initialized)
-	${complex} a[${max_radix}] = {${', '.join(['0'] * max_radix * 2)}};
+	${insertVariableDefinitions(scalar, complex, shared_mem, max_radix)}
 
 	${insertGlobalLoadsAndTranspose(n, threads_per_xform, xforms_per_block, max_radix,
 		min_mem_coalesce_width, split)}
@@ -780,19 +781,11 @@ ${insertBaseKernels(scalar, complex)}
 
 ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 {
-	%if shared_mem > 0:
-		__shared__ float smem[${shared_mem}];
-	%endif
-
-	${insertVariableDefinitions(scalar, complex)}
+	${insertVariableDefinitions(scalar, complex, shared_mem, radix1)}
 
 	%if not vertical or pass_num < num_passes - 1:
 		int b_num;
 	%endif
-
-	// need to fill a[] with zeros, because otherwise nvcc crashes
-	// (it considers a[] not initialized)
-	${complex} a[${radix1}] = {${', '.join(['0'] * radix1 * 2)}};
 
 	<% log2_blocks_per_xform = log2(blocks_per_xform) %>
 
