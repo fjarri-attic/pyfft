@@ -259,7 +259,7 @@ def runErrorTests():
 		for batch in [1, 16, 128, 1024, 4096]:
 
 			# 1D
-			for x in [3, 8, 9, 10, 13]:
+			for x in [3, 8, 9, 10, 11, 13]:
 				wrapper(2 ** x, batch=batch, split=split)
 
 			# 2D
@@ -273,8 +273,6 @@ def runErrorTests():
 					for z in [4, 7, 10]:
 						wrapper(2 ** x, 2 ** y, 2 ** z, batch=batch, split=split)
 
-	# these tests currently do not work, added to achieve 100% coverage
-	wrapper(2048)
 	wrapper(16) # while plan.mem_coalesce_with = 32
 
 def runPerformanceTests():

@@ -35,39 +35,43 @@
 	#define conj(a) complex_ctr((a).x, -(a).y)
 	#define conjTransp(a) complex_ctr(-(a).y, (a).x)
 
-	__device__ void fftKernel2(${complex} *a, int dir)
+	template<int dir>
+	__device__ void fftKernel2(${complex} *a)
 	{
 		${complex} c = (a)[0];
 		(a)[0] = c + (a)[1];
 		(a)[1] = c - (a)[1];
 	}
 
-	__device__ void fftKernel2S(${complex} &d1, ${complex} &d2, int dir)
+	template<int dir>
+	__device__ void fftKernel2S(${complex} &d1, ${complex} &d2)
 	{
 		${complex} c = (d1);
 		(d1) = c + (d2);
 		(d2) = c - (d2);
 	}
 
-	__device__ void fftKernel4(${complex} *a, int dir)
+	template<int dir>
+	__device__ void fftKernel4(${complex} *a)
 	{
-		fftKernel2S((a)[0], (a)[2], dir);
-		fftKernel2S((a)[1], (a)[3], dir);
-		fftKernel2S((a)[0], (a)[1], dir);
+		fftKernel2S<dir>((a)[0], (a)[2]);
+		fftKernel2S<dir>((a)[1], (a)[3]);
+		fftKernel2S<dir>((a)[0], (a)[1]);
 		(a)[3] = conjTransp((a)[3]) * dir;
-		fftKernel2S((a)[2], (a)[3], dir);
+		fftKernel2S<dir>((a)[2], (a)[3]);
 		${complex} c = (a)[1];
 		(a)[1] = (a)[2];
 		(a)[2] = c;
 	}
 
-	__device__ void fftKernel4s(${complex} &a0, ${complex} &a1, ${complex} &a2, ${complex} &a3, int dir)
+	template<int dir>
+	__device__ void fftKernel4s(${complex} &a0, ${complex} &a1, ${complex} &a2, ${complex} &a3)
 	{
-		fftKernel2S((a0), (a2), dir);
-		fftKernel2S((a1), (a3), dir);
-		fftKernel2S((a0), (a1), dir);
+		fftKernel2S<dir>((a0), (a2));
+		fftKernel2S<dir>((a1), (a3));
+		fftKernel2S<dir>((a0), (a1));
 		(a3) = conjTransp((a3)) * dir;
-		fftKernel2S((a2), (a3), dir);
+		fftKernel2S<dir>((a2), (a3));
 		${complex} c = (a1);
 		(a1) = (a2);
 		(a2) = c;
@@ -84,27 +88,28 @@
 		(a)[6] = c;
 	}
 
-	__device__ void fftKernel8(${complex} *a, int dir)
+	template<int dir>
+	__device__ void fftKernel8(${complex} *a)
 	{
 		const ${complex} w1  = complex_ctr((${scalar})0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir);
 		const ${complex} w3  = complex_ctr((${scalar})-0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir);
-		fftKernel2S((a)[0], (a)[4], dir);
-		fftKernel2S((a)[1], (a)[5], dir);
-		fftKernel2S((a)[2], (a)[6], dir);
-		fftKernel2S((a)[3], (a)[7], dir);
+		fftKernel2S<dir>((a)[0], (a)[4]);
+		fftKernel2S<dir>((a)[1], (a)[5]);
+		fftKernel2S<dir>((a)[2], (a)[6]);
+		fftKernel2S<dir>((a)[3], (a)[7]);
 		(a)[5] = w1 * (a)[5];
 		(a)[6] = conjTransp((a)[6]) * dir;
 		(a)[7] = w3 * (a)[7];
-		fftKernel2S((a)[0], (a)[2], dir);
-		fftKernel2S((a)[1], (a)[3], dir);
-		fftKernel2S((a)[4], (a)[6], dir);
-		fftKernel2S((a)[5], (a)[7], dir);
+		fftKernel2S<dir>((a)[0], (a)[2]);
+		fftKernel2S<dir>((a)[1], (a)[3]);
+		fftKernel2S<dir>((a)[4], (a)[6]);
+		fftKernel2S<dir>((a)[5], (a)[7]);
 		(a)[3] = conjTransp((a)[3]) * dir;
 		(a)[7] = conjTransp((a)[7]) * dir;
-		fftKernel2S((a)[0], (a)[1], dir);
-		fftKernel2S((a)[2], (a)[3], dir);
-		fftKernel2S((a)[4], (a)[5], dir);
-		fftKernel2S((a)[6], (a)[7], dir);
+		fftKernel2S<dir>((a)[0], (a)[1]);
+		fftKernel2S<dir>((a)[2], (a)[3]);
+		fftKernel2S<dir>((a)[4], (a)[5]);
+		fftKernel2S<dir>((a)[6], (a)[7]);
 		bitreverse8((a));
 	}
 
@@ -119,15 +124,16 @@
 		c = (a)[11]; (a)[11] = (a)[14]; (a)[14] = c;
 	}
 
-	__device__ void fftKernel16(${complex} *a, int dir)
+	template<int dir>
+	__device__ void fftKernel16(${complex} *a)
 	{
 		const ${scalar} w0 = (${scalar})0x1.d906bcp-1;
 		const ${scalar} w1 = (${scalar})0x1.87de2ap-2;
 		const ${scalar} w2 = (${scalar})0x1.6a09e6p-1;
-		fftKernel4s((a)[0], (a)[4], (a)[8],  (a)[12], dir);
-		fftKernel4s((a)[1], (a)[5], (a)[9],  (a)[13], dir);
-		fftKernel4s((a)[2], (a)[6], (a)[10], (a)[14], dir);
-		fftKernel4s((a)[3], (a)[7], (a)[11], (a)[15], dir);
+		fftKernel4s<dir>((a)[0], (a)[4], (a)[8],  (a)[12]);
+		fftKernel4s<dir>((a)[1], (a)[5], (a)[9],  (a)[13]);
+		fftKernel4s<dir>((a)[2], (a)[6], (a)[10], (a)[14]);
+		fftKernel4s<dir>((a)[3], (a)[7], (a)[11], (a)[15]);
 		(a)[5]  = (a)[5] * complex_ctr(w0, dir * w1);
 		(a)[6]  = (a)[6] * complex_ctr(w2, dir * w2);
 		(a)[7]  = (a)[7] * complex_ctr(w1, dir * w0);
@@ -137,10 +143,10 @@
 		(a)[13] = (a)[13] * complex_ctr(w1, dir * w0);
 		(a)[14] = (a)[14] * complex_ctr(-w2, dir * w2);
 		(a)[15] = (a)[15] * complex_ctr(-w0, -dir * w1);
-		fftKernel4((a), dir);
-		fftKernel4((a) + 4, dir);
-		fftKernel4((a) + 8, dir);
-		fftKernel4((a) + 12, dir);
+		fftKernel4<dir>((a));
+		fftKernel4<dir>((a) + 4);
+		fftKernel4<dir>((a) + 8);
+		fftKernel4<dir>((a) + 12);
 		bitreverse4x4((a));
 	}
 
@@ -161,24 +167,25 @@
 		(a)[27] = c2;   c2 = (a)[23];  (a)[23] = c1;   (a)[15] = c2;
 	}
 
-	__device__ void fftKernel32(${complex} *a, int dir)
+	template<int dir>
+	__device__ void fftKernel32(${complex} *a)
 	{
-		fftKernel2S((a)[0],  (a)[16], dir);
-		fftKernel2S((a)[1],  (a)[17], dir);
-		fftKernel2S((a)[2],  (a)[18], dir);
-		fftKernel2S((a)[3],  (a)[19], dir);
-		fftKernel2S((a)[4],  (a)[20], dir);
-		fftKernel2S((a)[5],  (a)[21], dir);
-		fftKernel2S((a)[6],  (a)[22], dir);
-		fftKernel2S((a)[7],  (a)[23], dir);
-		fftKernel2S((a)[8],  (a)[24], dir);
-		fftKernel2S((a)[9],  (a)[25], dir);
-		fftKernel2S((a)[10], (a)[26], dir);
-		fftKernel2S((a)[11], (a)[27], dir);
-		fftKernel2S((a)[12], (a)[28], dir);
-		fftKernel2S((a)[13], (a)[29], dir);
-		fftKernel2S((a)[14], (a)[30], dir);
-		fftKernel2S((a)[15], (a)[31], dir);
+		fftKernel2S<dir>((a)[0],  (a)[16]);
+		fftKernel2S<dir>((a)[1],  (a)[17]);
+		fftKernel2S<dir>((a)[2],  (a)[18]);
+		fftKernel2S<dir>((a)[3],  (a)[19]);
+		fftKernel2S<dir>((a)[4],  (a)[20]);
+		fftKernel2S<dir>((a)[5],  (a)[21]);
+		fftKernel2S<dir>((a)[6],  (a)[22]);
+		fftKernel2S<dir>((a)[7],  (a)[23]);
+		fftKernel2S<dir>((a)[8],  (a)[24]);
+		fftKernel2S<dir>((a)[9],  (a)[25]);
+		fftKernel2S<dir>((a)[10], (a)[26]);
+		fftKernel2S<dir>((a)[11], (a)[27]);
+		fftKernel2S<dir>((a)[12], (a)[28]);
+		fftKernel2S<dir>((a)[13], (a)[29]);
+		fftKernel2S<dir>((a)[14], (a)[30]);
+		fftKernel2S<dir>((a)[15], (a)[31]);
 		(a)[17] = (a)[17] * complex_ctr((${scalar})0x1.f6297cp-1, (${scalar})0x1.8f8b84p-3 * dir);
 		(a)[18] = (a)[18] * complex_ctr((${scalar})0x1.d906bcp-1, (${scalar})0x1.87de2ap-2 * dir);
 		(a)[19] = (a)[19] * complex_ctr((${scalar})0x1.a9b662p-1, (${scalar})0x1.1c73b4p-1 * dir);
@@ -194,8 +201,8 @@
 		(a)[29] = (a)[29] * complex_ctr((${scalar})-0x1.a9b662p-1, (${scalar})0x1.1c73b4p-1 * dir);
 		(a)[30] = (a)[30] * complex_ctr((${scalar})-0x1.d906bcp-1, (${scalar})0x1.87de2ap-2 * dir);
 		(a)[31] = (a)[31] * complex_ctr((${scalar})-0x1.f6297cp-1, (${scalar})0x1.8f8b84p-3 * dir);
-		fftKernel16((a), dir);
-		fftKernel16((a) + 16, dir);
+		fftKernel16<dir>((a));
+		fftKernel16<dir>((a) + 16);
 		bitreverse32((a));
 	}
 </%def>
@@ -499,7 +506,7 @@
 
 <%def name="insertfftKernel(radix, num_iter)">
 	%for i in range(num_iter):
-		fftKernel${radix}(a + ${i * radix}, dir);
+		fftKernel${radix}<dir>(a + ${i * radix});
 	%endfor
 </%def>
 
@@ -623,6 +630,33 @@
 	%endif
 </%def>
 
+<%def name="insertGlobalHeader(name, split, scalar, complex)">
+%if split:
+	void ${name}(${scalar} *in_real, ${scalar} *in_imag, ${scalar} *out_real, ${scalar} *out_imag, int S)
+%else:
+	void ${name}(${complex} *in, ${complex} *out, int S)
+%endif
+</%def>
+
+<%def name="insertKernelTemplateHeader(kernel_name, split, scalar, complex)">
+	template<int dir> __device__ ${insertGlobalHeader(kernel_name, split, scalar, complex)}
+</%def>
+
+<%def name="insertKernelSpecializations(kernel_name, split, scalar, complex)">
+extern "C" {
+	%for dir, suffix in ((-1, "_forward"), (1, "_inverse")):
+		__global__ ${insertGlobalHeader(kernel_name + suffix, split, scalar, complex)}
+		{
+		%if split:
+			${kernel_name}<${dir}>(in_real, in_imag, out_real, out_imag, S);
+		%else:
+			${kernel_name}<${dir}>(in, out, S);
+		%endif
+		}
+	%endfor
+}
+</%def>
+
 <%def name="localKernel(scalar, complex, split, kernel_name, n, radix_arr, shared_mem, \
 	threads_per_xform, xforms_per_block, min_mem_coalesce_width, num_smem_banks)">
 
@@ -630,39 +664,33 @@
 
 ${insertBaseKernels(scalar, complex)}
 
-extern "C" {
+${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
+{
+	%if shared_mem > 0:
+		__shared__ float smem[${shared_mem}];
+	%endif
 
-%if split:
-	__global__ void ${kernel_name}(${scalar} *in_real, ${scalar} *in_imag, ${scalar} *out_real, ${scalar} *out_imag, int dir, int S)
-%else:
-	__global__ void ${kernel_name}(${complex} *in, ${complex} *out, int dir, int S)
-%endif
-	{
-		%if shared_mem > 0:
-			__shared__ float smem[${shared_mem}];
-		%endif
+	int i, j, r, index_in, index_out, index, tid, b_num, x_num, k, l;
+	int s, ii, jj, offset;
+	${complex} w;
+	${scalar} ang, angf, ang1;
+	size_t smem_store_index, smem_load_index;
 
-		int i, j, r, index_in, index_out, index, tid, b_num, x_num, k, l;
-		int s, ii, jj, offset;
-		${complex} w;
-		${scalar} ang, angf, ang1;
-		size_t smem_store_index, smem_load_index;
+	## need to fill a[] with zeros, because otherwise nvcc crashes
+	## (it considers a[] not initialized)
+	${complex} a[${max_radix}] = {${', '.join(['0'] * max_radix * 2)}};
 
-		## need to fill a[] with zeros, because otherwise nvcc crashes
-		## (it considers a[] not initialized)
-		${complex} a[${max_radix}] = {${', '.join(['0'] * max_radix * 2)}};
+	int thread_id = threadIdx.x;
+	int block_id = blockIdx.x + blockIdx.y * gridDim.x;
 
-		int thread_id = threadIdx.x;
-		int block_id = blockIdx.x + blockIdx.y * gridDim.x;
+	${insertGlobalLoadsAndTranspose(n, threads_per_xform, xforms_per_block, max_radix,
+		min_mem_coalesce_width, split)}
 
-		${insertGlobalLoadsAndTranspose(n, threads_per_xform, xforms_per_block, max_radix,
-			min_mem_coalesce_width, split)}
-
-		<%
-			radix_prev = 1
-			data_len = n
-			num_radix = len(radix_arr)
-		%>
+	<%
+		radix_prev = 1
+		data_len = n
+		num_radix = len(radix_arr)
+	%>
 
 	%for r in range(num_radix):
 		<%
@@ -694,10 +722,9 @@ extern "C" {
 
 	${insertGlobalStoresAndTranspose(n, max_radix, radix_arr[num_radix - 1], threads_per_xform,
 		xforms_per_block, min_mem_coalesce_width, split)}
-
-	}
 }
 
+${insertKernelSpecializations(kernel_name, split, scalar, complex)}
 </%def>
 
 <%def name="globalKernel(scalar, complex, split, kernel_name, n, curr_n, pass_num, shared_mem, \
@@ -705,7 +732,6 @@ extern "C" {
 
 ${insertBaseKernels(scalar, complex)}
 
-extern "C" {
 	<%
 		radix_arr, radix1_arr, radix2_arr = getGlobalRadixInfo(n)
 
@@ -736,185 +762,180 @@ extern "C" {
 		m = log2(n)
 	%>
 
-%if split:
-	__global__ void ${kernel_name}(${scalar} *in_real, ${scalar} *in_imag, ${scalar} *out_real, ${scalar} *out_imag, int dir, int S)
-%else:
-	__global__ void ${kernel_name}(${complex} *in, ${complex} *out, int dir, int S)
-%endif
-	{
-		%if shared_mem > 0:
-			__shared__ float smem[${shared_mem}];
-		%endif
+${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
+{
+	%if shared_mem > 0:
+		__shared__ float smem[${shared_mem}];
+	%endif
 
-		int i, j, r, index_in, index_out, index, tid, b_num, x_num, k, l;
-		int s, ii, jj, offset;
-		${complex} w;
-		${scalar} ang, angf, ang1;
-		size_t smem_store_index, smem_load_index;
+	int i, j, r, index_in, index_out, index, tid, b_num, x_num, k, l;
+	int s, ii, jj, offset;
+	${complex} w;
+	${scalar} ang, angf, ang1;
+	size_t smem_store_index, smem_load_index;
 
-		// need to fill a[] with zeros, because otherwise nvcc crashes
-		// (it considers a[] not initialized)
-		${complex} a[${radix1}] = {${', '.join(['0'] * radix1 * 2)}};
+	// need to fill a[] with zeros, because otherwise nvcc crashes
+	// (it considers a[] not initialized)
+	${complex} a[${radix1}] = {${', '.join(['0'] * radix1 * 2)}};
 
-		int thread_id = threadIdx.x;
-		int block_id = blockIdx.x + blockIdx.y * gridDim.x;
+	int thread_id = threadIdx.x;
+	int block_id = blockIdx.x + blockIdx.y * gridDim.x;
 
-		<% log2_blocks_per_xform = log2(blocks_per_xform) %>
+	<% log2_blocks_per_xform = log2(blocks_per_xform) %>
 
-		%if vertical:
-			x_num = block_id >> ${log2_blocks_per_xform};
-			block_id = block_id & ${blocks_per_xform - 1};
-			index_in = mad24(block_id, ${batch_size}, x_num << ${log2(n * horiz_bs)});
-			tid = mul24(block_id, ${batch_size});
-			i = tid >> ${log2_stride_out};
-			j = tid & ${stride_out - 1};
-			<%
-				stride = radix * radix_init
-				for i in range(pass_num):
-					stride *= radix_arr[i]
-			%>
-			index_out = mad24(i, ${stride}, j + (x_num << ${log2(n*horiz_bs)}));
-			b_num = block_id;
-		%else:
-			b_num = block_id & ${blocks_per_xform - 1};
-			x_num = block_id >> ${log2_blocks_per_xform};
-			index_in = mul24(b_num, ${batch_size});
-			tid = index_in;
-			i = tid >> ${log2_stride_out};
-			j = tid & ${stride_out - 1};
-			<%
-				stride = radix*radix_init
-				for i in range(pass_num):
-					stride *= radix_arr[i]
-			%>
-			index_out = mad24(i, ${stride}, j);
-			index_in += (x_num << ${m});
-			index_out += (x_num << ${m});
-		%endif
+	%if vertical:
+		x_num = block_id >> ${log2_blocks_per_xform};
+		block_id = block_id & ${blocks_per_xform - 1};
+		index_in = mad24(block_id, ${batch_size}, x_num << ${log2(n * horiz_bs)});
+		tid = mul24(block_id, ${batch_size});
+		i = tid >> ${log2_stride_out};
+		j = tid & ${stride_out - 1};
+		<%
+			stride = radix * radix_init
+			for i in range(pass_num):
+				stride *= radix_arr[i]
+		%>
+		index_out = mad24(i, ${stride}, j + (x_num << ${log2(n*horiz_bs)}));
+		b_num = block_id;
+	%else:
+		b_num = block_id & ${blocks_per_xform - 1};
+		x_num = block_id >> ${log2_blocks_per_xform};
+		index_in = mul24(b_num, ${batch_size});
+		tid = index_in;
+		i = tid >> ${log2_stride_out};
+		j = tid & ${stride_out - 1};
+		<%
+			stride = radix*radix_init
+			for i in range(pass_num):
+				stride *= radix_arr[i]
+		%>
+		index_out = mad24(i, ${stride}, j);
+		index_in += (x_num << ${m});
+		index_out += (x_num << ${m});
+	%endif
 
-		## Load Data
-		<% log2_batch_size = log2(batch_size) %>
-		tid = thread_id;
-		i = tid & ${batch_size - 1};
-		j = tid >> ${log2_batch_size};
-		index_in += mad24(j, ${stride_in}, i);
+	## Load Data
+	<% log2_batch_size = log2(batch_size) %>
+	tid = thread_id;
+	i = tid & ${batch_size - 1};
+	j = tid >> ${log2_batch_size};
+	index_in += mad24(j, ${stride_in}, i);
+
+	%if split:
+		in_real += index_in;
+		in_imag += index_in;
+		%for comp, part in (('x', 'real'), ('y', 'imag')):
+			%for j in range(radix1):
+				a[${j}].${comp} = in_${part}[${j * input_multiplier * stride_in}];
+			%endfor
+		%endfor
+	%else:
+		in += index_in;
+		%for j in range(radix1):
+			a[${j}] = in[${j * input_multiplier * stride_in}];
+		%endfor
+	%endif
+
+	fftKernel${radix1}<dir>(a);
+
+	%if radix2 > 1:
+		## twiddle
+		%for k in range(1, radix1):
+			ang = dir * ((${scalar})2 * M_PI * ${k} / ${radix}) * j;
+			complex_exp(w, ang);
+			a[${k}] = a[${k}] * w;
+		%endfor
+
+		## shuffle
+		index_in = mad24(j, ${block_size * num_iter}, i);
+		smem_store_index = tid;
+		smem_load_index = index_in;
+
+		%for comp in ('x', 'y'):
+			%for k in range(radix1):
+				smem[smem_store_index + ${k * block_size}] = a[${k}].${comp};
+			%endfor
+			__syncthreads();
+
+			%for k in range(num_iter):
+				%for t in range(radix2):
+					a[${k * radix2 + t}].${comp} = smem[smem_load_index + ${t * batch_size + k * block_size}];
+				%endfor
+			%endfor
+			__syncthreads();
+		%endfor
+
+		%for j in range(num_iter):
+			fftKernel${radix2}<dir>(a + ${j * radix2});
+		%endfor
+	%endif
+
+	## twiddle
+	%if pass_num < num_passes - 1:
+		l = ((b_num << ${log2_batch_size}) + i) >> ${log2_stride_out};
+		k = j << ${log2(radix1 / radix2)};
+		ang1 = dir * ((${scalar})2 * M_PI / ${curr_n}) * l;
+		%for t in range(radix1):
+			ang = ang1 * (k + ${(t % radix2) * radix1 + (t / radix2)});
+			complex_exp(w, ang);
+			a[${t}] = a[${t}] * w;
+		%endfor
+	%endif
+
+	## Store Data
+	%if stride_out == 1:
+		smem_store_index = mad24(i, ${radix + 1}, j << ${log2(radix1 / radix2)});
+		smem_load_index = mad24(tid >> ${log2(radix)}, ${radix + 1}, tid & ${radix - 1});
+
+		%for comp in ('x', 'y'):
+			%for i in range(radix1 / radix2):
+				%for j in range(radix2):
+					smem[smem_store_index + ${i + j * radix1}] = a[${i * radix2 + j}].${comp};
+				%endfor
+			%endfor
+			__syncthreads();
+
+			%for i in range(radix1):
+				a[${i}].${comp} = smem[smem_load_index + ${i * (radix + 1) * (block_size / radix)}];
+			%endfor
+			__syncthreads();
+		%endfor
+
+		index_out += tid;
 
 		%if split:
-			in_real += index_in;
-			in_imag += index_in;
+			out_real += index_out;
+			out_imag += index_out;
+
 			%for comp, part in (('x', 'real'), ('y', 'imag')):
-				%for j in range(radix1):
-					a[${j}].${comp} = in_${part}[${j * input_multiplier * stride_in}];
+				%for k in range(radix1):
+					out_${part}[${k * block_size}] = a[${k}].${comp};
 				%endfor
 			%endfor
 		%else:
-			in += index_in;
-			%for j in range(radix1):
-				a[${j}] = in[${j * input_multiplier * stride_in}];
+			out += index_out;
+			%for k in range(radix1):
+				out[${k * block_size}] = a[${k}];
 			%endfor
 		%endif
-
-		fftKernel${radix1}(a, dir);
-
-		%if radix2 > 1:
-			## twiddle
-			%for k in range(1, radix1):
-				ang = dir * ((${scalar})2 * M_PI * ${k} / ${radix}) * j;
-				complex_exp(w, ang);
-				a[${k}] = a[${k}] * w;
-			%endfor
-
-			## shuffle
-			index_in = mad24(j, ${block_size * num_iter}, i);
-			smem_store_index = tid;
-			smem_load_index = index_in;
-
-			%for comp in ('x', 'y'):
+	%else:
+		index_out += mad24(j, ${num_iter * stride_out}, i);
+		%if split:
+			out_real += index_out;
+			out_imag += index_out;
+			%for comp, part in (('x', 'real'), ('y', 'imag')):
 				%for k in range(radix1):
-					smem[smem_store_index + ${k * block_size}] = a[${k}].${comp};
+					out_${part}[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] = a[${k}].${comp};
 				%endfor
-				__syncthreads();
-
-				%for k in range(num_iter):
-					%for t in range(radix2):
-						a[${k * radix2 + t}].${comp} = smem[smem_load_index + ${t * batch_size + k * block_size}];
-					%endfor
-				%endfor
-				__syncthreads();
 			%endfor
-
-			%for j in range(num_iter):
-				fftKernel${radix2}(a + ${j * radix2}, dir);
-			%endfor
-		%endif
-
-		## twiddle
-		%if pass_num < num_passes - 1:
-			l = ((b_num << ${log2_batch_size}) + i) >> ${log2_stride_out};
-			k = j << ${log2(radix1 / radix2)};
-			ang1 = dir * ((${scalar})2 * M_PI / ${curr_n}) * l;
-			%for t in range(radix1):
-				ang = ang1 * (k + ${(t % radix2) * radix1 + (t / radix2)});
-				complex_exp(w, ang);
-				a[${t}] = a[${t}] * w;
-			%endfor
-		%endif
-
-		## Store Data
-		%if stride_out == 1:
-			smem_store_index = mad24(i, ${radix + 1}, j << ${log2(radix1 / radix2)});
-			smem_load_index = mad24(tid >> ${log2(radix)}, ${radix + 1}, tid & ${radix - 1});
-
-			%for comp in ('x', 'y'):
-				%for i in range(radix1 / radix2):
-					%for j in range(radix2):
-						smem[smem_store_index + ${i + j * radix1}] = a[${i * radix2 + j}].${comp};
-					%endfor
-				%endfor
-				__syncthreads();
-
-				%for i in range(radix1):
-					a[${i}].${comp} = smem[smem_load_index + ${i * (radix + 1) * (block_size / radix)}];
-				%endfor
-				__syncthreads();
-			%endfor
-
-			index_out += tid;
-
-			%if split:
-				out_real += index_out;
-				out_imag += index_out;
-
-				%for comp, part in (('x', 'real'), ('y', 'imag')):
-					%for k in range(radix1):
-						out_${part}[${k * block_size}] = a[${k}].${comp};
-					%endfor
-				%endfor
-			%else:
-				out += index_out;
-				%for k in range(radix1):
-					out[${k * block_size}] = a[${k}];
-				%endfor
-			%endif
 		%else:
-			index_out += mad24(j, ${num_iter * stride_out}, i);
-			%if split:
-				out_real += index_out;
-				out_imag += index_out;
-				%for comp, part in (('x', 'real'), ('y', 'imag')):
-					%for k in range(radix1):
-						out_${part}[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] = a[${k}].${comp};
-					%endfor
-				%endfor
-			%else:
-				out += index_out;
-				%for k in range(radix1):
-					out[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] = a[${k}];
-				%endfor
-			%endif
+			out += index_out;
+			%for k in range(radix1):
+				out[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] = a[${k}];
+			%endfor
 		%endif
-	}
-
+	%endif
 }
 
+${insertKernelSpecializations(kernel_name, split, scalar, complex)}
 </%def>

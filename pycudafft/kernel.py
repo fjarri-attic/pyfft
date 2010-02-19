@@ -48,13 +48,15 @@ class _FFTKernel:
 				raise
 
 			module = SourceModule(kernel_string, no_extern_c=True)
-			func_ref = module.get_function(self.kernel_name)
+			func_ref_forward = module.get_function(self.kernel_name + "_forward")
+			func_ref_inverse = module.get_function(self.kernel_name + "_inverse")
 
-			if func_ref.num_regs * self.block_size > self.max_registers:
+			if func_ref_forward.num_regs * self.block_size > self.max_registers:
 				continue
 
 			self.module = module
-			self.func_ref = func_ref
+			self.func_ref_forward = func_ref_forward
+			self.func_ref_inverse = func_ref_inverse
 			break
 
 		if self.module is None:
@@ -68,18 +70,30 @@ class _FFTKernel:
 			self.exec_batch = batch
 
 			if self.split:
-				self.func_ref.prepare("PPPPii", block=(self.block_size, 1, 1))
+				self.func_ref_forward.prepare("PPPPi", block=(self.block_size, 1, 1))
+				self.func_ref_inverse.prepare("PPPPi", block=(self.block_size, 1, 1))
 			else:
-				self.func_ref.prepare("PPii", block=(self.block_size, 1, 1))
+				self.func_ref_forward.prepare("PPi", block=(self.block_size, 1, 1))
+				self.func_ref_inverse.prepare("PPi", block=(self.block_size, 1, 1))
 
-	def preparedCall(self, data_in, data_out, dir):
+	def preparedCall(self, data_in, data_out, inverse):
 		# TODO: handle cases when exec_blocks_num > maximum grid length
-		self.func_ref.prepared_call((self.exec_blocks_num, 1), data_in, data_out, dir, self.exec_batch)
+		if inverse:
+			func_ref = self.func_ref_inverse
+		else:
+			func_ref = self.func_ref_forward
 
-	def preparedCallSplit(self, data_in_re, data_in_im, data_out_re, data_out_im, dir):
+		func_ref.prepared_call((self.exec_blocks_num, 1), data_in, data_out, self.exec_batch)
+
+	def preparedCallSplit(self, data_in_re, data_in_im, data_out_re, data_out_im, inverse):
 		# TODO: handle cases when exec_blocks_num > maximum grid length
-		self.func_ref.prepared_call((self.exec_blocks_num, 1), data_in_re, data_in_im, data_out_re,
-			data_out_im, dir, self.exec_batch)
+		if inverse:
+			func_ref = self.func_ref_inverse
+		else:
+			func_ref = self.func_ref_forward
+
+		func_ref.prepared_call((self.exec_blocks_num, 1), data_in_re, data_in_im, data_out_re,
+			data_out_im, self.exec_batch)
 
 	def _getKernelWorkDimensions(self, batch):
 		blocks_num = self.blocks_num

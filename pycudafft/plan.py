@@ -135,8 +135,6 @@ class FFTPlan:
 		if isinstance(data_out, GPUArray):
 			data_out = data_out.gpudata
 
-		dir = 1 if inverse else -1
-
 		if self.temp_buffer_needed and self.last_batch_size != batch:
 			self.last_batch_size = batch
 			self.tempmemobj = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.complex_nbytes)
@@ -166,7 +164,7 @@ class FFTPlan:
 					inplace_done = True
 
 				kinfo.prepare(batch)
-				kinfo.preparedCall(mem_objs[curr_read], mem_objs[curr_write], dir)
+				kinfo.preparedCall(mem_objs[curr_read], mem_objs[curr_write], inverse)
 
 				curr_read  = 1 if (curr_write == 1) else 2
 				curr_write = 2 if (curr_write == 1) else 1
@@ -176,7 +174,7 @@ class FFTPlan:
 		else:
 			for kinfo in self.kernels:
 				kinfo.prepare(batch)
-				kinfo.preparedCall(mem_objs[curr_read], mem_objs[curr_write], dir)
+				kinfo.preparedCall(mem_objs[curr_read], mem_objs[curr_write], inverse)
 
 				curr_read  = 1
 				curr_write = 1
@@ -202,8 +200,6 @@ class FFTPlan:
 
 		if isinstance(data_out_im, GPUArray):
 			data_out_im = data_out_im.gpudata
-
-		dir = 1 if inverse else -1
 
 		if self.temp_buffer_needed and self.last_batch_size != batch:
 			self.last_batch_size = batch
@@ -237,7 +233,7 @@ class FFTPlan:
 
 				kinfo.prepare(batch)
 				kinfo.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
-					mem_objs_re[curr_write], mem_objs_im[curr_write], dir)
+					mem_objs_re[curr_write], mem_objs_im[curr_write], inverse)
 
 				curr_read  = 1 if (curr_write == 1) else 2
 				curr_write = 2 if (curr_write == 1) else 1
@@ -248,7 +244,7 @@ class FFTPlan:
 			for kinfo in self.kernels:
 				kinfo.prepare(batch)
 				kinfo.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
-					mem_objs_re[curr_write], mem_objs_im[curr_write], dir)
+					mem_objs_re[curr_write], mem_objs_im[curr_write], inverse)
 
 				curr_read  = 1
 				curr_write = 1
