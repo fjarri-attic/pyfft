@@ -28,11 +28,9 @@ class FFTPlan:
 		else:
 			self.dim = _FFT_3D
 
-		class _Dim:
-			def __init__(self, x, y, z):
-				self.x = x
-				self.y = 1 if y is None else y
-				self.z = 1 if z is None else z
+		self.x = x
+		self.y = 1 if y is None else y
+		self.z = 1 if z is None else z
 
 		if precision == SINGLE_PRECISION:
 			self.scalar = 'float'
@@ -52,8 +50,8 @@ class FFTPlan:
 		self.tempmemobj_im = None
 
 		self.split = split
-		self.n = _Dim(x, y, z)
-		for n in (self.n.x, self.n.y, self.n.z):
+
+		for n in (self.x, self.y, self.z):
 			if 2 ** log2(n) != n:
 				raise ValueError("Array dimensions must be powers of two")
 
@@ -97,29 +95,29 @@ class FFTPlan:
 		kernels = []
 
 		if dir == X_DIRECTION:
-			if self.n.x > self.max_smem_fft_size:
-				kernels.extend(GlobalFFTKernel.createChain(self, self.n.x, 1 , X_DIRECTION, 1))
-			elif self.n.x > 1:
-				radix_array = getRadixArray(self.n.x, 0)
-				if self.n.x / radix_array[0] <= self.max_block_size:
-					kernel = LocalFFTKernel(self, self.n.x)
+			if self.x > self.max_smem_fft_size:
+				kernels.extend(GlobalFFTKernel.createChain(self, self.x, 1 , X_DIRECTION, 1))
+			elif self.x > 1:
+				radix_array = getRadixArray(self.x, 0)
+				if self.x / radix_array[0] <= self.max_block_size:
+					kernel = LocalFFTKernel(self, self.x)
 					kernel.compile(self.max_block_size)
 					kernels.append(kernel)
 				else:
-					radix_array = getRadixArray(self.n.x, self.max_radix)
-					if self.n.x / radix_array[0] <= self.max_block_size:
-						kernel = LocalFFTKernel(self, self.n.x)
+					radix_array = getRadixArray(self.x, self.max_radix)
+					if self.x / radix_array[0] <= self.max_block_size:
+						kernel = LocalFFTKernel(self, self.x)
 						kernel.compile(self.max_block_size)
 						kernels.append(kernel)
 					else:
 						# TODO: find out which conditions are necessary to execute this code
-						kernels.extend(GlobalFFTKernel.createChain(self, self.n.x, 1 , X_DIRECTION, 1))
+						kernels.extend(GlobalFFTKernel.createChain(self, self.x, 1 , X_DIRECTION, 1))
 		elif dir == Y_DIRECTION:
-			if self.n.y > 1:
-				kernels.extend(GlobalFFTKernel.createChain(self, self.n.y, self.n.x, Y_DIRECTION, 1))
+			if self.y > 1:
+				kernels.extend(GlobalFFTKernel.createChain(self, self.y, self.x, Y_DIRECTION, 1))
 		elif dir == Z_DIRECTION:
-			if self.n.z > 1:
-				kernels.extend(GlobalFFTKernel.createChain(self, self.n.z, self.n.x * self.n.y, Z_DIRECTION, 1))
+			if self.z > 1:
+				kernels.extend(GlobalFFTKernel.createChain(self, self.z, self.x * self.y, Z_DIRECTION, 1))
 		else:
 			raise ValueError("Wrong direction")
 
@@ -147,7 +145,7 @@ class FFTPlan:
 
 		if self.temp_buffer_needed and new_batch:
 			self.last_batch_size = batch
-			self.tempmemobj = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.complex_nbytes)
+			self.tempmemobj = self.allocate(self.x * self.y * self.z * batch * self.complex_nbytes)
 
 		mem_objs = (data_in, data_out, self.tempmemobj)
 
@@ -220,8 +218,8 @@ class FFTPlan:
 
 		if self.temp_buffer_needed and new_batch:
 			self.last_batch_size = batch
-			self.tempmemobj_re = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.scalar_nbytes)
-			self.tempmemobj_im = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.scalar_nbytes)
+			self.tempmemobj_re = self.allocate(self.x * self.y * self.z * batch * self.scalar_nbytes)
+			self.tempmemobj_im = self.allocate(self.x * self.y * self.z * batch * self.scalar_nbytes)
 
 		mem_objs_re = (data_in_re, data_out_re, self.tempmemobj_re)
 		mem_objs_im = (data_in_im, data_out_im, self.tempmemobj_im)

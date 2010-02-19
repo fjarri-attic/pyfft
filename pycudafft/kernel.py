@@ -15,9 +15,9 @@ _template = Template(filename=os.path.join(_dir, 'kernel.mako'))
 class _FFTKernel:
 
 	def __init__(self, plan):
-		self.x = plan.n.x
-		self.y = plan.n.y
-		self.z = plan.n.z
+		self.x = plan.x
+		self.y = plan.y
+		self.z = plan.z
 		self.num_smem_banks = plan.num_smem_banks
 		self.min_mem_coalesce_width = plan.min_mem_coalesce_width
 		self.max_radix = plan.max_radix
