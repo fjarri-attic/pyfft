@@ -53,10 +53,10 @@ Now, let's prepare simple test array and try to execute plan over it:
       0.+0.j    0.+0.j]]
 
 As expected, we got array with the first non-zero element, equal to array size.
-Let's now perform the inverse transform. Note the normalization.
+Let's now perform the inverse transform:
 
  >>> plan.execute(gpu_data, inverse=True)
- >>> result = gpu_data.get() / data.size
+ >>> result = gpu_data.get()
 
 Since data is non-integer, we cannot simply compare it. We will just calculate error instead.
 
@@ -74,7 +74,8 @@ FFTPlan
 
 Class, containing precalculated FFT plan.
 
-**Arguments**: ``FFTPlan(x, y=None, z=None, split=False, precision=SINGLE_PRECISION, mempool=None, device=None)``
+**Arguments**: ``FFTPlan(x, y=None, z=None, split=False, precision=SINGLE_PRECISION,
+mempool=None, device=None, normalize=True)``
 
 ``x``, ``y``, ``z``:
   Problem size. If ``z`` and/or ``y`` are not defined, 2D or 1D plan will be created.
@@ -93,6 +94,10 @@ Class, containing precalculated FFT plan.
 
 ``device``:
   Device object, which will be used to optimize kernels. If not defined, the current one will be taken.
+
+``normalize``:
+  Whether to normalize inverse FFT so that IFFT(FFT(signal)) == signal. If equals to ``False``,
+  IFFT(FFT(signal)) == signal * x * y * z.
 
 FFTPlan.execute()
 ~~~~~~~~~~~~~~~~~

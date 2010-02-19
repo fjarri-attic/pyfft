@@ -184,7 +184,7 @@ def testErrors(x, y, z, batch, split):
 
 	# pycudafft tests
 
-	plan = FFTPlan(x, y, z, split=split)
+	plan = FFTPlan(x, y, z, split=split, normalize=True)
 
 	# out of place forward
 	if split:
@@ -202,10 +202,10 @@ def testErrors(x, y, z, batch, split):
 	if split:
 		plan.executeSplit(b_gpu_re, b_gpu_im,
 			a_gpu_re, a_gpu_im, batch=batch, inverse=True)
-		pyfft_res_outplace = (a_gpu_re.get() + 1j * a_gpu_im.get()) / size
+		pyfft_res_outplace = (a_gpu_re.get() + 1j * a_gpu_im.get())
 	else:
 		plan.execute(b_gpu, a_gpu, batch=batch, inverse=True)
-		pyfft_res_outplace = a_gpu.get() / size
+		pyfft_res_outplace = a_gpu.get()
 
 	pycudafft_err_outplace = difference(pyfft_res_outplace, data, batch)
 
@@ -223,10 +223,10 @@ def testErrors(x, y, z, batch, split):
 	# inplace inverse
 	if split:
 		plan.executeSplit(a_gpu_re, a_gpu_im, batch=batch, inverse=True)
-		pyfft_res_inplace = (a_gpu_re.get() + 1j * a_gpu_im.get()) / size
+		pyfft_res_inplace = (a_gpu_re.get() + 1j * a_gpu_im.get())
 	else:
 		plan.execute(a_gpu, batch=batch, inverse=True)
-		pyfft_res_inplace = a_gpu.get() / size
+		pyfft_res_inplace = a_gpu.get()
 
 	pycudafft_err_inplace = difference(pyfft_res_inplace, data, batch)
 

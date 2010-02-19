@@ -20,7 +20,14 @@ class _FFTKernel:
 		self._kernel_name = "fft"
 		self._previous_batch = None
 
-	def compile(self, max_block_size):
+	def addNormalization(self):
+		kernel_string = self.generate(self._max_block_size, normalize=True)
+
+		# using the last successful max_block_size, because normalization clearly
+		# will not decrease the number of used registers
+		self.compile(self._max_block_size, normalize=True)
+
+	def compile(self, max_block_size, normalize=False):
 		self._module = None
 		self._func_ref = None
 		max_block_size = max_block_size * 2
@@ -34,7 +41,7 @@ class _FFTKernel:
 			# given parameters do not allow us to create code;
 			# other errors are not expected and passed further
 			try:
-				kernel_string = self.generate(max_block_size)
+				kernel_string = self.generate(max_block_size, normalize)
 			except AssertionError as e:
 				continue
 
@@ -50,6 +57,7 @@ class _FFTKernel:
 			self._module = module
 			self._func_ref_forward = func_ref_forward
 			self._func_ref_inverse = func_ref_inverse
+			self._max_block_size = max_block_size
 			break
 
 		if self._module is None:
@@ -119,7 +127,7 @@ class LocalFFTKernel(_FFTKernel):
 		_FFTKernel.__init__(self, fft_params)
 		self._n = n
 
-	def generate(self, max_block_size):
+	def generate(self, max_block_size, normalize):
 		n = self._n
 		assert n <= max_block_size * self._params.max_radix, "Signal length is too big for shared mem fft"
 
@@ -148,6 +156,7 @@ class LocalFFTKernel(_FFTKernel):
 			self._params.scalar, self._params.complex, self._params.split, self._kernel_name,
 			n, radix_array, smem_size, threads_per_xform, xforms_per_block,
 			self._params.min_mem_coalesce_width, self._params.num_smem_banks,
+			self._params.size if normalize else 1,
 			log2=log2, getPadding=getPadding)
 
 
@@ -164,7 +173,7 @@ class GlobalFFTKernel(_FFTKernel):
 		self._starting_batch_size = batch_size
 		self._pass_num = pass_num
 
-	def generate(self, max_block_size):
+	def generate(self, max_block_size, normalize):
 
 		batch_size = self._starting_batch_size
 
@@ -230,6 +239,7 @@ class GlobalFFTKernel(_FFTKernel):
 			self._n, self._curr_n, self._pass_num,
 			smem_size, batch_size,
 			self._horiz_bs, self._vert_bs, vertical, max_block_size,
+			self._params.size if normalize else 1,
 			log2=log2, getGlobalRadixInfo=getGlobalRadixInfo)
 
 	def __get_batch_size(self):

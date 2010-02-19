@@ -23,6 +23,7 @@
 	inline ${complex} operator+(${complex} a, ${complex} b) { return complex_ctr(a.x + b.x, a.y + b.y); }
 	inline ${complex} operator-(${complex} a, ${complex} b) { return complex_ctr(a.x - b.x, a.y - b.y); }
 	inline ${complex} operator*(${complex} a, ${scalar}  b) { return complex_ctr(b * a.x, b * a.y); }
+	inline ${complex} operator/(${complex} a, int b) { return complex_ctr(a.x / b, a.y / b); }
 	inline ${complex} operator*(${complex} a, ${complex} b) { return complex_ctr(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
 
 	## This version (with mad() replaced by proper multiplication/addition function) would be
@@ -229,12 +230,12 @@
 	%endif
 </%def>
 
-<%def name="insertGlobalStore(a_index, g_index, split)">
+<%def name="insertGlobalStore(a_index, g_index, split, normalization_coeff)">
 	%if split:
-		out_real[${g_index}] = a[${a_index}].x;
-		out_imag[${g_index}] = a[${a_index}].y;
+		out_real[${g_index}] = a[${a_index}].x / (dir == 1 ? ${normalization_coeff} : 1);
+		out_imag[${g_index}] = a[${a_index}].y / (dir == 1 ? ${normalization_coeff} : 1);
 	%else:
-		out[${g_index}] = a[${a_index}];
+		out[${g_index}] = a[${a_index}] / (dir == 1 ? ${normalization_coeff} : 1);
 	%endif
 </%def>
 
@@ -389,7 +390,8 @@
 	%endif
 </%def>
 
-<%def name="insertGlobalStoresAndTranspose(n, max_radix, radix, threads_per_xform, xforms_per_block, mem_coalesce_width, split)">
+<%def name="insertGlobalStoresAndTranspose(n, max_radix, radix, threads_per_xform, xforms_per_block, \
+	   mem_coalesce_width, split, normalization_coeff)">
 
 	<%
 		block_size = threads_per_xform * xforms_per_block
@@ -408,7 +410,7 @@
 				k = i / num_iter
 				ind = j * radix + k
 			%>
-			${insertGlobalStore(ind, i * threads_per_xform, split)}
+			${insertGlobalStore(ind, i * threads_per_xform, split, normalization_coeff)}
 		%endfor
 
 		%if xforms_per_block > 1:
@@ -452,7 +454,8 @@
 			{
 			%for j in range(num_inner_iter):
 				${insertGlobalStore(i * num_inner_iter + j, \
-					j * mem_coalesce_width + i * (block_size / mem_coalesce_width) * n, split)}
+					j * mem_coalesce_width + i * (block_size / mem_coalesce_width) * n, \
+					split, normalization_coeff)}
 			%endfor
 			}
 			%if i != num_outer_iter - 1:
@@ -465,7 +468,8 @@
 		%for i in range(num_outer_iter):
 			%for j in range(num_inner_iter):
 				${insertGlobalStore(i * num_inner_iter + j, \
-					j * mem_coalesce_width + i * (block_size / mem_coalesce_width) * n, split)}
+					j * mem_coalesce_width + i * (block_size / mem_coalesce_width) * n, \
+					split, normalization_coeff)}
 			%endfor
 		%endfor
 		}
@@ -497,7 +501,7 @@
 		%for i in range(max_radix):
 			if(jj < s)
 			{
-				${insertGlobalStore(i, i * block_size, split)}
+				${insertGlobalStore(i, i * block_size, split, normalization_coeff)}
 			}
 			%if i != max_radix - 1:
 				jj += ${block_size / n};
@@ -507,7 +511,7 @@
 		else
 		{
 			%for i in range(max_radix):
-				${insertGlobalStore(i, i * block_size, split)}
+				${insertGlobalStore(i, i * block_size, split, normalization_coeff)}
 			%endfor
 		}
 	%endif
@@ -686,7 +690,7 @@ extern "C" {
 </%def>
 
 <%def name="localKernel(scalar, complex, split, kernel_name, n, radix_arr, shared_mem, \
-	threads_per_xform, xforms_per_block, min_mem_coalesce_width, num_smem_banks)">
+	threads_per_xform, xforms_per_block, min_mem_coalesce_width, num_smem_banks, normalization_coeff)">
 
 	<%
 		max_radix = radix_arr[0]
@@ -741,14 +745,14 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 	%endfor
 
 	${insertGlobalStoresAndTranspose(n, max_radix, radix_arr[num_radix - 1], threads_per_xform,
-		xforms_per_block, min_mem_coalesce_width, split)}
+		xforms_per_block, min_mem_coalesce_width, split, normalization_coeff)}
 }
 
 ${insertKernelSpecializations(kernel_name, split, scalar, complex)}
 </%def>
 
 <%def name="globalKernel(scalar, complex, split, kernel_name, n, curr_n, pass_num, shared_mem, \
-	batch_size, horiz_bs, vert_bs, vertical, max_block_size)">
+	batch_size, horiz_bs, vert_bs, vertical, max_block_size, normalization_coeff)">
 
 ${insertBaseKernels(scalar, complex)}
 
@@ -948,13 +952,15 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 			out_imag += index_out;
 			%for comp, part in (('x', 'real'), ('y', 'imag')):
 				%for k in range(radix1):
-					out_${part}[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] = a[${k}].${comp};
+					out_${part}[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] =
+						a[${k}].${comp} / (dir == 1 ? ${normalization_coeff} : 1);
 				%endfor
 			%endfor
 		%else:
 			out += index_out;
 			%for k in range(radix1):
-				out[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] = a[${k}];
+				out[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] =
+					a[${k}] / (dir == 1 ? ${normalization_coeff} : 1);
 			%endfor
 		%endif
 	%endif

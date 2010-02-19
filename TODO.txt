@@ -2,9 +2,8 @@ global:
     - check work for big arrays and batch sizes (and for array size == 1 maybe, just in case)
     - check currently not working testcases (they were added in order to get 100% coverage on initially
       ported code; they do not work because of some bug in PyCuda)
-    - add optional normalization after inverse FFT
 
-optimizations (only after benchmarks!):
+optimizations:
     - replace mad24() with vector function
       (tried: decreases performance; compiler seems to know better when to insert mad's)
     - replace indexes with pointer arithmetic if someone answers in thread

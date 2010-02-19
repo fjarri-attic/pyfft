@@ -61,7 +61,7 @@ class FFTPlan:
 	"""
 
 	def __init__(self, x, y=None, z=None, split=False, precision=SINGLE_PRECISION,
-		mempool=None, device=None):
+		mempool=None, device=None, normalize=True):
 
 		if z is None:
 			if y is None:
@@ -75,6 +75,7 @@ class FFTPlan:
 			from pycuda.autoinit import device
 
 		self._params = _FFTParams(x, y, z, split, precision, device)
+		self._normalize = normalize
 
 		if mempool is None:
 			self._allocate = cuda.mem_alloc
@@ -103,6 +104,11 @@ class FFTPlan:
 			self._kernels.extend(self._fft1D(X_DIRECTION))
 			self._kernels.extend(self._fft1D(Y_DIRECTION))
 			self._kernels.extend(self._fft1D(Z_DIRECTION))
+
+		# Since we're changing the last kernel, it won't affect
+		# 'chaining' of batch sizes in global kernels
+		if self._normalize:
+			self._kernels[-1].addNormalization()
 
 		self._temp_buffer_needed = False
 		for kernel in self._kernels:
