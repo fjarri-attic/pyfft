@@ -681,7 +681,7 @@ extern "C" {
 	## (it considers a[] not initialized)
 	${complex} a[${temp_array_size}] = {${', '.join(['0'] * temp_array_size * 2)}};
 
-	int i, j, index_in, index_out, tid, x_num;
+	int i, j;
 
 	int thread_id = threadIdx.x;
 	int block_id = blockIdx.x + blockIdx.y * gridDim.x;
@@ -784,7 +784,7 @@ ${insertBaseKernels(scalar, complex)}
 ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 {
 	${insertVariableDefinitions(scalar, complex, shared_mem, radix1)}
-
+	int index_in, index_out, x_num, tid;
 	%if not vertical or pass_num < num_passes - 1:
 		int b_num;
 	%endif
