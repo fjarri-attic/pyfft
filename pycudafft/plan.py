@@ -8,6 +8,7 @@ from pycuda.tools import DeviceData
 import numpy
 
 from .kernel import *
+from .kernel_helpers import log2
 
 _FFT_1D = 1
 _FFT_2D = 2
@@ -19,7 +20,6 @@ class FFTPlan:
 
 	def __init__(self, x, y=None, z=None, split=False, precision=SINGLE_PRECISION, mempool=None):
 
-		# TODO: check that dimensions are the power of two
 		if z is None:
 			if y is None:
 				self.dim = _FFT_1D
@@ -53,6 +53,10 @@ class FFTPlan:
 
 		self.split = split
 		self.n = _Dim(x, y, z)
+		for n in (self.n.x, self.n.y, self.n.z):
+			if 2 ** log2(n) != n:
+				raise ValueError("Array dimensions must be powers of two")
+
 		self.last_batch_size = 0
 		self.max_smem_fft_size = 2048
 		self.max_radix = 16
