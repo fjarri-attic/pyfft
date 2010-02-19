@@ -61,12 +61,13 @@ class FFTPlan:
 		self.max_smem_fft_size = 2048
 		self.max_radix = 16
 
+		self.max_grid_x = 2 ** log2(device.get_attribute(device_attribute.MAX_GRID_DIM_X))
+
 		self.devdata = DeviceData()
 
 		global_memory_word = self.scalar_nbytes if split else self.complex_nbytes
 		self.min_mem_coalesce_width = self.devdata.align_bytes(word_size=global_memory_word) / global_memory_word
 
-		# TODO: get this parameter properly from device instead of calculating it
 		self.num_smem_banks = self.devdata.smem_granularity
 
 		self.max_block_size = device.get_attribute(device_attribute.MAX_BLOCK_DIM_X)

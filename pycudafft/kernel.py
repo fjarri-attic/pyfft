@@ -25,6 +25,7 @@ class _FFTKernel:
 		self.max_registers = plan.max_registers
 		self.max_smem_fft_size = plan.max_smem_fft_size
 		self.split = plan.split
+		self.max_grid_x = plan.max_grid_x
 
 		self.previous_batch = None
 
@@ -63,8 +64,8 @@ class _FFTKernel:
 	def prepare(self, batch):
 		if self.previous_batch != batch:
 			self.previous_batch = batch
-			batch, blocks_num = self._getKernelWorkDimensions(batch)
-			self.exec_blocks_num = blocks_num
+			batch, grid = self._getKernelWorkDimensions(batch)
+			self.exec_grid = grid
 			self.exec_batch = batch
 
 			if self.split:
@@ -75,22 +76,20 @@ class _FFTKernel:
 				self.func_ref_inverse.prepare("PPi", block=(self.block_size, 1, 1))
 
 	def preparedCall(self, data_in, data_out, inverse):
-		# TODO: handle cases when exec_blocks_num > maximum grid length
 		if inverse:
 			func_ref = self.func_ref_inverse
 		else:
 			func_ref = self.func_ref_forward
 
-		func_ref.prepared_call((self.exec_blocks_num, 1), data_in, data_out, self.exec_batch)
+		func_ref.prepared_call(self.exec_grid, data_in, data_out, self.exec_batch)
 
 	def preparedCallSplit(self, data_in_re, data_in_im, data_out_re, data_out_im, inverse):
-		# TODO: handle cases when exec_blocks_num > maximum grid length
 		if inverse:
 			func_ref = self.func_ref_inverse
 		else:
 			func_ref = self.func_ref_forward
 
-		func_ref.prepared_call((self.exec_blocks_num, 1), data_in_re, data_in_im, data_out_re,
+		func_ref.prepared_call(self.exec_grid, data_in_re, data_in_im, data_out_re,
 			data_out_im, self.exec_batch)
 
 	def _getKernelWorkDimensions(self, batch):
@@ -109,7 +108,12 @@ class _FFTKernel:
 		elif self.dir == Z_DIRECTION:
 			blocks_num *= batch
 
-		return batch, blocks_num
+		if blocks_num > self.max_grid_x:
+			grid = (self.max_grid_x, self.max_grid_x / blocks_num)
+		else:
+			grid = (blocks_num, 1)
+
+		return batch, grid
 
 
 class LocalFFTKernel(_FFTKernel):
