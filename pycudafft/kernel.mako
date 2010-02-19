@@ -513,7 +513,8 @@
 <%def name="insertTwiddleKernel(radix, num_iter, radix_prev, data_len, threads_per_xform, scalar)">
 
 	<% log2_radix_prev = log2(radix_prev) %>
-
+	{ // Twiddle kernel
+		${scalar} angf;
 	%for z in range(num_iter):
 		%if z == 0:
 			%if radix_prev > 1:
@@ -537,6 +538,7 @@
 			a[${ind}] = a[${ind}] * w;
 		%endfor
 	%endfor
+	}
 </%def>
 
 <%def name="insertLocalStores(num_iter, radix, threads_per_xform, threads_req, offset, comp)">
@@ -657,10 +659,27 @@ extern "C" {
 }
 </%def>
 
+<%def name="insertVariableDefinitions(scalar, complex)">
+	int i, j, index_in, index_out, tid, x_num, k, l;
+
+	int s, ii, jj, offset;
+	${complex} w;
+
+	${scalar} ang, ang1;
+	size_t smem_store_index, smem_load_index;
+	int thread_id = threadIdx.x;
+	int block_id = blockIdx.x + blockIdx.y * gridDim.x;
+</%def>
+
 <%def name="localKernel(scalar, complex, split, kernel_name, n, radix_arr, shared_mem, \
 	threads_per_xform, xforms_per_block, min_mem_coalesce_width, num_smem_banks)">
 
-	<% max_radix = radix_arr[0] %>
+	<%
+		max_radix = radix_arr[0]
+		radix_prev = 1
+		data_len = n
+		num_radix = len(radix_arr)
+	%>
 
 ${insertBaseKernels(scalar, complex)}
 
@@ -670,27 +689,14 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 		__shared__ float smem[${shared_mem}];
 	%endif
 
-	int i, j, r, index_in, index_out, index, tid, b_num, x_num, k, l;
-	int s, ii, jj, offset;
-	${complex} w;
-	${scalar} ang, angf, ang1;
-	size_t smem_store_index, smem_load_index;
+	${insertVariableDefinitions(scalar, complex)}
 
 	## need to fill a[] with zeros, because otherwise nvcc crashes
 	## (it considers a[] not initialized)
 	${complex} a[${max_radix}] = {${', '.join(['0'] * max_radix * 2)}};
 
-	int thread_id = threadIdx.x;
-	int block_id = blockIdx.x + blockIdx.y * gridDim.x;
-
 	${insertGlobalLoadsAndTranspose(n, threads_per_xform, xforms_per_block, max_radix,
 		min_mem_coalesce_width, split)}
-
-	<%
-		radix_prev = 1
-		data_len = n
-		num_radix = len(radix_arr)
-	%>
 
 	%for r in range(num_radix):
 		<%
@@ -768,18 +774,15 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 		__shared__ float smem[${shared_mem}];
 	%endif
 
-	int i, j, r, index_in, index_out, index, tid, b_num, x_num, k, l;
-	int s, ii, jj, offset;
-	${complex} w;
-	${scalar} ang, angf, ang1;
-	size_t smem_store_index, smem_load_index;
+	${insertVariableDefinitions(scalar, complex)}
+
+	%if not vertical or pass_num < num_passes - 1:
+		int b_num;
+	%endif
 
 	// need to fill a[] with zeros, because otherwise nvcc crashes
 	// (it considers a[] not initialized)
 	${complex} a[${radix1}] = {${', '.join(['0'] * radix1 * 2)}};
-
-	int thread_id = threadIdx.x;
-	int block_id = blockIdx.x + blockIdx.y * gridDim.x;
 
 	<% log2_blocks_per_xform = log2(blocks_per_xform) %>
 
@@ -796,7 +799,11 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 				stride *= radix_arr[i]
 		%>
 		index_out = mad24(i, ${stride}, j + (x_num << ${log2(n*horiz_bs)}));
-		b_num = block_id;
+
+		## do not set it, if it won't be used
+		%if pass_num < num_passes - 1:
+			b_num = block_id;
+		%endif
 	%else:
 		b_num = block_id & ${blocks_per_xform - 1};
 		x_num = block_id >> ${log2_blocks_per_xform};
