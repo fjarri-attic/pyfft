@@ -15,6 +15,10 @@
 	## integer multiplication
 	#define mul24(x, y) ((x) * (y))
 
+	## TODO: add double-precision support
+	#define sin(x) __sinf(x)
+	#define cos(x) __cosf(x)
+
 	inline ${complex} operator+(${complex} a, ${complex} b) { return complex_ctr(a.x + b.x, a.y + b.y); }
 	inline ${complex} operator-(${complex} a, ${complex} b) { return complex_ctr(a.x - b.x, a.y - b.y); }
 	inline ${complex} operator*(${complex} a, ${scalar}  b) { return complex_ctr(b * a.x, b * a.y); }
@@ -521,7 +525,6 @@
 		%for k in range(1, radix):
 			<% ind = z * radix + k %>
 			ang = dir * ((${scalar})2 * M_PI * (${scalar})${k} / (${scalar})${data_len}) * angf;
-			## TODO: use native_cos and sin (as OpenCL implementation did)
 			w = complex_ctr(cos(ang), sin(ang));
 			a[${ind}] = a[${ind}] * w;
 		%endfor
@@ -816,7 +819,6 @@ extern "C" {
 			## twiddle
 			%for k in range(1, radix1):
 				ang = dir * ((${scalar})2 * M_PI * ${k} / ${radix}) * j;
-				## TODO: use native cos and sin (as OpenCL implementation did)
 				w = complex_ctr(cos(ang), sin(ang));
 				a[${k}] = a[${k}] * w;
 			%endfor
@@ -852,7 +854,6 @@ extern "C" {
 			ang1 = dir * ((${scalar})2 * M_PI / ${curr_n}) * l;
 			%for t in range(radix1):
 				ang = ang1 * (k + ${(t % radix2) * radix1 + (t / radix2)});
-				## TODO: use native cos and sin (as OpenCL implementation did)
 				w = complex_ctr(cos(ang), sin(ang));
 				a[${t}] = a[${t}] * w;
 			%endfor
