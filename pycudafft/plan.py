@@ -7,7 +7,7 @@ from pycuda.tools import DeviceData
 
 import numpy
 
-from kernel import *
+from .kernel import *
 
 _FFT_1D = 1
 _FFT_2D = 2

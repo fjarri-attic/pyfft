@@ -1,9 +1,9 @@
 import os.path
 
+from mako.template import Template
 from pycuda.compiler import SourceModule
 
-from mako.template import Template
-from kernel_helpers import *
+from .kernel_helpers import *
 
 X_DIRECTION = 0
 Y_DIRECTION = 1
