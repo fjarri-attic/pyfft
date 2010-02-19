@@ -267,7 +267,6 @@
 			}
 		%else:
 			ii = thread_id;
-			jj = 0;
 
 			{
 				int offset = mad24(block_id, ${n}, ii);
@@ -673,6 +672,7 @@ extern "C" {
 
 	%if shared_mem > 0:
 		__shared__ ${scalar} smem[${shared_mem}];
+		size_t smem_store_index, smem_load_index;
 	%endif
 
 	## need to fill a[] with zeros, because otherwise nvcc crashes
@@ -681,11 +681,11 @@ extern "C" {
 
 	int i, j, index_in, index_out, tid, x_num, k, l;
 
-	int s, ii, jj;
+	int s;
 	${complex} w;
 
 	${scalar} ang;
-	size_t smem_store_index, smem_load_index;
+
 	int thread_id = threadIdx.x;
 	int block_id = blockIdx.x + blockIdx.y * gridDim.x;
 </%def>
@@ -705,6 +705,11 @@ ${insertBaseKernels(scalar, complex)}
 ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 {
 	${insertVariableDefinitions(scalar, complex, shared_mem, max_radix)}
+	int ii;
+
+	%if not (threads_per_xform >= min_mem_coalesce_width and xforms_per_block == 1):
+		int jj;
+	%endif
 
 	${insertGlobalLoadsAndTranspose(n, threads_per_xform, xforms_per_block, max_radix,
 		min_mem_coalesce_width, split)}
