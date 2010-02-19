@@ -247,7 +247,7 @@ def testErrors(x, y, z, batch, split):
 
 def runErrorTests():
 
-	def wrapper(x, y=None, z=None, batch=1, split=None):
+	def wrapper(x, y=None, z=None, batch=1, split=False):
 		try:
 			testErrors(x, y, z, batch=batch, split=split)
 		except Exception, e:
