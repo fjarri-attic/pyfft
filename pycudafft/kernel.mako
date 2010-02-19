@@ -519,11 +519,13 @@
 	%endfor
 </%def>
 
-<%def name="insertTwiddleKernel(radix, num_iter, radix_prev, data_len, threads_per_xform, scalar)">
+<%def name="insertTwiddleKernel(radix, num_iter, radix_prev, data_len, threads_per_xform, scalar, complex)">
 
 	<% log2_radix_prev = log2(radix_prev) %>
 	{ // Twiddle kernel
-		${scalar} angf;
+		${scalar} angf, ang;
+		${complex} w;
+
 	%for z in range(num_iter):
 		%if z == 0:
 			%if radix_prev > 1:
@@ -679,12 +681,7 @@ extern "C" {
 	## (it considers a[] not initialized)
 	${complex} a[${temp_array_size}] = {${', '.join(['0'] * temp_array_size * 2)}};
 
-	int i, j, index_in, index_out, tid, x_num, k, l;
-
-	int s;
-	${complex} w;
-
-	${scalar} ang;
+	int i, j, index_in, index_out, tid, x_num;
 
 	int thread_id = threadIdx.x;
 	int block_id = blockIdx.x + blockIdx.y * gridDim.x;
@@ -708,7 +705,7 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 	int ii;
 
 	%if not (threads_per_xform >= min_mem_coalesce_width and xforms_per_block == 1):
-		int jj;
+		int jj, s;
 	%endif
 
 	${insertGlobalLoadsAndTranspose(n, threads_per_xform, xforms_per_block, max_radix,
@@ -724,7 +721,7 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 		${insertfftKernel(radix_arr[r], num_iter)}
 
 		%if r < num_radix - 1:
-			${insertTwiddleKernel(radix_arr[r], num_iter, radix_prev, data_len, threads_per_xform, scalar)}
+			${insertTwiddleKernel(radix_arr[r], num_iter, radix_prev, data_len, threads_per_xform, scalar, complex)}
 			<%
 				lMemSize, offset, mid_pad = getPadding(threads_per_xform, radix_prev, threads_req,
 					xforms_per_block, radix_arr[r], num_smem_banks)
@@ -855,11 +852,16 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 
 	%if radix2 > 1:
 		## twiddle
+		{
+			${scalar} ang;
+			${complex} w;
+
 		%for k in range(1, radix1):
 			ang = dir * ((${scalar})2 * M_PI * ${k} / ${radix}) * j;
 			complex_exp(w, ang);
 			a[${k}] = a[${k}] * w;
 		%endfor
+		}
 
 		## shuffle
 		index_in = mad24(j, ${block_size * num_iter}, i);
@@ -887,15 +889,19 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 
 	## twiddle
 	%if pass_num < num_passes - 1:
-		${scalar} ang1;
-		l = ((b_num << ${log2_batch_size}) + i) >> ${log2_stride_out};
-		k = j << ${log2(radix1 / radix2)};
+	{
+		${scalar} ang1, ang;
+		${complex} w;
+
+		int l = ((b_num << ${log2_batch_size}) + i) >> ${log2_stride_out};
+		int k = j << ${log2(radix1 / radix2)};
 		ang1 = dir * ((${scalar})2 * M_PI / ${curr_n}) * l;
 		%for t in range(radix1):
 			ang = ang1 * (k + ${(t % radix2) * radix1 + (t / radix2)});
 			complex_exp(w, ang);
 			a[${t}] = a[${t}] * w;
 		%endfor
+	}
 	%endif
 
 	## Store Data
