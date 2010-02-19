@@ -17,6 +17,10 @@ SINGLE_PRECISION = 0
 
 
 class _FFTParams:
+	"""
+	Internal class, which serves as an interface between kernel creator and plan.
+	Contains different device and FFT plan parameters.
+	"""
 
 	def __init__(self, x, y, z, split, precision, device):
 
@@ -53,6 +57,9 @@ class _FFTParams:
 
 
 class FFTPlan:
+	"""
+	Class for FFT plan preparation and execution.
+	"""
 
 	def __init__(self, x, y=None, z=None, split=False, precision=SINGLE_PRECISION, mempool=None):
 
@@ -75,11 +82,14 @@ class FFTPlan:
 		self._tempmemobj_re = None
 		self._tempmemobj_im = None
 
+		# prepared functions and temporary buffers are cached for repeating batch sizes
 		self._last_batch_size = 0
 
 		self._generateKernelCode()
 
 	def _generateKernelCode(self):
+		"""Create and compile FFT kernels"""
+
 		self._kernels = []
 		if self._dim == _FFT_1D:
 			self._kernels.extend(self._fft1D(X_DIRECTION))
@@ -97,6 +107,7 @@ class FFTPlan:
 				self._temp_buffer_needed = True
 
 	def _fft1D(self, dir):
+		"""Create and compile kernels for one of the dimensions"""
 
 		kernels = []
 
@@ -133,22 +144,12 @@ class FFTPlan:
 
 		return kernels
 
-	def execute(self, data_in, data_out=None, inverse=False, batch=1):
+	def _execute(self, split, is_inplace, inverse, batch, *args):
+		"""Execute plan for given data type"""
 
-		assert self._params.split == False, "This method can be used with interleaved arrays only"
+		assert self._params.split == split, "Execution data type must correspond to plan data type"
 
 		inplace_done = False
-		if data_out is None:
-			data_out = data_in
-			is_inplace = True
-		else:
-			is_inplace = False
-
-		if isinstance(data_in, GPUArray):
-			data_in = data_in.gpudata
-
-		if isinstance(data_out, GPUArray):
-			data_out = data_out.gpudata
 
 		new_batch = False
 		if self._last_batch_size != batch:
@@ -157,13 +158,20 @@ class FFTPlan:
 
 		if self._temp_buffer_needed and new_batch:
 			self._last_batch_size = batch
-			self._tempmemobj = self._allocate(self._params.size * batch * self._params.complex_nbytes)
+			buffer_size = self._params.size * batch * self._params.scalar_nbytes
+			if split:
+				self._tempmemobj_re = self._allocate(buffer_size)
+				self._tempmemobj_im = self._allocate(buffer_size)
+			else:
+				self._tempmemobj = self._allocate(buffer_size * 2)
 
-		mem_objs = (data_in, data_out, self._tempmemobj)
+		if split:
+			mem_objs_re = (args[0], args[2], self._tempmemobj_re)
+			mem_objs_im = (args[1], args[3], self._tempmemobj_im)
+		else:
+			mem_objs = (args[0], args[1], self._tempmemobj)
 
-		num_kernels = len(self._kernels)
-
-		num_kernels_is_odd = (num_kernels % 2 == 1)
+		num_kernels_is_odd = (len(self._kernels) % 2 == 1)
 		curr_read  = 0
 		curr_write = 1
 
@@ -185,7 +193,12 @@ class FFTPlan:
 
 				if new_batch:
 					kernel.prepare(batch)
-				kernel.preparedCall(mem_objs[curr_read], mem_objs[curr_write], inverse)
+
+				if split:
+					kernel.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
+						mem_objs_re[curr_write], mem_objs_im[curr_write], inverse)
+				else:
+					kernel.preparedCall(mem_objs[curr_read], mem_objs[curr_write], inverse)
 
 				curr_read  = 1 if (curr_write == 1) else 2
 				curr_write = 2 if (curr_write == 1) else 1
@@ -196,16 +209,36 @@ class FFTPlan:
 			for kernel in self._kernels:
 				if new_batch:
 					kernel.prepare(batch)
-				kernel.preparedCall(mem_objs[curr_read], mem_objs[curr_write], inverse)
+
+				if split:
+					kernel.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
+						mem_objs_re[curr_write], mem_objs_im[curr_write], inverse)
+				else:
+					kernel.preparedCall(mem_objs[curr_read], mem_objs[curr_write], inverse)
 
 				curr_read  = 1
 				curr_write = 1
 
+	def execute(self, data_in, data_out=None, inverse=False, batch=1):
+		"""Execute plan for interleaved complex array"""
+
+		if data_out is None:
+			data_out = data_in
+			is_inplace = True
+		else:
+			is_inplace = False
+
+		if isinstance(data_in, GPUArray):
+			data_in = data_in.gpudata
+
+		if isinstance(data_out, GPUArray):
+			data_out = data_out.gpudata
+
+		self._execute(False, is_inplace, inverse, batch, data_in, data_out)
+
 	def executeSplit(self, data_in_re, data_in_im, data_out_re=None, data_out_im=None, inverse=False, batch=1):
+		"""Execute plan for split complex array"""
 
-		assert self._params.split == True, "This method can be used with split arrays only"
-
-		inplace_done = False
 		if data_out_re is None and data_out_im is None:
 			data_out_re = data_in_re
 			data_out_im = data_in_im
@@ -225,57 +258,4 @@ class FFTPlan:
 		if isinstance(data_out_im, GPUArray):
 			data_out_im = data_out_im.gpudata
 
-		new_batch = False
-		if self._last_batch_size != batch:
-			self._last_batch_size = batch
-			new_batch = True
-
-		if self._temp_buffer_needed and new_batch:
-			self._last_batch_size = batch
-			self._tempmemobj_re = self._allocate(self._params.size * batch * self._params.scalar_nbytes)
-			self._tempmemobj_im = self._allocate(self._params.size * batch * self._params.scalar_nbytes)
-
-		mem_objs_re = (data_in_re, data_out_re, self._tempmemobj_re)
-		mem_objs_im = (data_in_im, data_out_im, self._tempmemobj_im)
-
-		num_kernels = len(self._kernels)
-
-		num_kernels_is_odd = (num_kernels % 2 == 1)
-		curr_read  = 0
-		curr_write = 1
-
-		# at least one external dram shuffle (transpose) required
-		inplace_done = False
-		if self._temp_buffer_needed:
-			# in-place transform
-			if is_inplace:
-				curr_read  = 1
-				curr_write = 2
-				inplace_done = False
-			else:
-				curr_write = 1 if num_kernels_is_odd else 2
-
-			for kernel in self._kernels:
-				if is_inplace and num_kernels_is_odd and not inplace_done and kernel.in_place_possible:
-					curr_write = curr_read
-					inplace_done = True
-
-				if new_batch:
-					kernel.prepare(batch)
-				kernel.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
-					mem_objs_re[curr_write], mem_objs_im[curr_write], inverse)
-
-				curr_read  = 1 if (curr_write == 1) else 2
-				curr_write = 2 if (curr_write == 1) else 1
-
-		# no dram shuffle (transpose required) transform
-		# all kernels can execute in-place.
-		else:
-			for kernel in self._kernels:
-				if new_batch:
-					kernel.prepare(batch)
-				kernel.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
-					mem_objs_re[curr_write], mem_objs_im[curr_write], inverse)
-
-				curr_read  = 1
-				curr_write = 1
+		self._execute(True, is_inplace, inverse, batch, data_in_re, data_in_im, data_out_re, data_out_im)
