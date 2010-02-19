@@ -701,7 +701,7 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 {
 	${insertVariableDefinitions(scalar, complex, shared_mem, max_radix)}
 	int ii;
-	%if num_radix > 0:
+	%if num_radix > 1:
 		int i, j;
 	%endif
 
