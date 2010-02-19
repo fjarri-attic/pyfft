@@ -635,7 +635,7 @@
 	smem_load_index = mad24(j, ${threads_req + offset}, i);
 </%def>
 
-<%def name="insertLocalStoreIndexArithmatic(threads_req, xforms_per_block, radix, offset, mid_pad)">
+<%def name="insertLocalStoreIndexArithmetic(threads_req, xforms_per_block, radix, offset, mid_pad)">
 	%if xforms_per_block == 1:
 		smem_store_index = ii;
 	%else:
@@ -681,8 +681,6 @@ extern "C" {
 	## (it considers a[] not initialized)
 	${complex} a[${temp_array_size}] = {${', '.join(['0'] * temp_array_size * 2)}};
 
-	int i, j;
-
 	int thread_id = threadIdx.x;
 	int block_id = blockIdx.x + blockIdx.y * gridDim.x;
 </%def>
@@ -703,6 +701,9 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 {
 	${insertVariableDefinitions(scalar, complex, shared_mem, max_radix)}
 	int ii;
+	%if num_radix > 0:
+		int i, j;
+	%endif
 
 	%if not (threads_per_xform >= min_mem_coalesce_width and xforms_per_block == 1):
 		int jj, s;
@@ -726,7 +727,7 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 				lMemSize, offset, mid_pad = getPadding(threads_per_xform, radix_prev, threads_req,
 					xforms_per_block, radix_arr[r], num_smem_banks)
 			%>
-			${insertLocalStoreIndexArithmatic(threads_req, xforms_per_block, radix_arr[r], offset, mid_pad)}
+			${insertLocalStoreIndexArithmetic(threads_req, xforms_per_block, radix_arr[r], offset, mid_pad)}
 			${insertLocalLoadIndexArithmetic(radix_prev, radix_arr[r], threads_req, threads_per_xform, xforms_per_block, offset, mid_pad)}
 			%for comp in ('x', 'y'):
 				${insertLocalStores(num_iter, radix_arr[r], threads_per_xform, threads_req, offset, comp)}
@@ -784,7 +785,7 @@ ${insertBaseKernels(scalar, complex)}
 ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 {
 	${insertVariableDefinitions(scalar, complex, shared_mem, radix1)}
-	int index_in, index_out, x_num, tid;
+	int index_in, index_out, x_num, tid, i, j;
 	%if not vertical or pass_num < num_passes - 1:
 		int b_num;
 	%endif
