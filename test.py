@@ -259,7 +259,7 @@ def runErrorTests():
 		for batch in [1, 16, 128, 1024, 4096]:
 
 			# 1D
-			for x in [3, 8, 9, 10, 11, 13]:
+			for x in [3, 8, 9, 10, 11, 13, 20]:
 				wrapper(2 ** x, batch=batch, split=split)
 
 			# 2D
