@@ -1,4 +1,3 @@
-from pycuda.autoinit import device
 from pycuda.driver import device_attribute
 from pycuda.gpuarray import GPUArray
 import pycuda.driver as cuda
@@ -61,7 +60,8 @@ class FFTPlan:
 	Class for FFT plan preparation and execution.
 	"""
 
-	def __init__(self, x, y=None, z=None, split=False, precision=SINGLE_PRECISION, mempool=None):
+	def __init__(self, x, y=None, z=None, split=False, precision=SINGLE_PRECISION,
+		mempool=None, device=None):
 
 		if z is None:
 			if y is None:
@@ -70,6 +70,9 @@ class FFTPlan:
 				self._dim = _FFT_2D
 		else:
 			self._dim = _FFT_3D
+
+		if device is None:
+			from pycuda.autoinit import device
 
 		self._params = _FFTParams(x, y, z, split, precision, device)
 

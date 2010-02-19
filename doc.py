@@ -74,7 +74,7 @@ FFTPlan
 
 Class, containing precalculated FFT plan.
 
-**Arguments**: ``FFTPlan(x, y=None, z=None, split=False, precision=SINGLE_PRECISION, mempool=None)``
+**Arguments**: ``FFTPlan(x, y=None, z=None, split=False, precision=SINGLE_PRECISION, mempool=None, device=None)``
 
 ``x``, ``y``, ``z``:
   Problem size. If ``z`` and/or ``y`` are not defined, 2D or 1D plan will be created.
@@ -90,6 +90,9 @@ Class, containing precalculated FFT plan.
 
 ``mempool``:
   If specified, method ``allocate`` of this object will be used to create temporary buffers.
+
+``device``:
+  Device object, which will be used to optimize kernels. If not defined, the current one will be taken.
 
 FFTPlan.execute()
 ~~~~~~~~~~~~~~~~~
