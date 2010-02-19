@@ -135,7 +135,12 @@ class FFTPlan:
 		if isinstance(data_out, GPUArray):
 			data_out = data_out.gpudata
 
-		if self.temp_buffer_needed and self.last_batch_size != batch:
+		new_batch = False
+		if self.last_batch_size != batch:
+			self.last_batch_size = batch
+			new_batch = True
+
+		if self.temp_buffer_needed and new_batch:
 			self.last_batch_size = batch
 			self.tempmemobj = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.complex_nbytes)
 
@@ -163,7 +168,8 @@ class FFTPlan:
 					curr_write = curr_read
 					inplace_done = True
 
-				kinfo.prepare(batch)
+				if new_batch:
+					kinfo.prepare(batch)
 				kinfo.preparedCall(mem_objs[curr_read], mem_objs[curr_write], inverse)
 
 				curr_read  = 1 if (curr_write == 1) else 2
@@ -173,7 +179,8 @@ class FFTPlan:
 		# all kernels can execute in-place.
 		else:
 			for kinfo in self.kernels:
-				kinfo.prepare(batch)
+				if new_batch:
+					kinfo.prepare(batch)
 				kinfo.preparedCall(mem_objs[curr_read], mem_objs[curr_write], inverse)
 
 				curr_read  = 1
@@ -201,7 +208,12 @@ class FFTPlan:
 		if isinstance(data_out_im, GPUArray):
 			data_out_im = data_out_im.gpudata
 
-		if self.temp_buffer_needed and self.last_batch_size != batch:
+		new_batch = False
+		if self.last_batch_size != batch:
+			self.last_batch_size = batch
+			new_batch = True
+
+		if self.temp_buffer_needed and new_batch:
 			self.last_batch_size = batch
 			self.tempmemobj_re = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.scalar_nbytes)
 			self.tempmemobj_im = self.allocate(self.n.x * self.n.y * self.n.z * batch * self.scalar_nbytes)
@@ -231,7 +243,8 @@ class FFTPlan:
 					curr_write = curr_read
 					inplace_done = True
 
-				kinfo.prepare(batch)
+				if new_batch:
+					kinfo.prepare(batch)
 				kinfo.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
 					mem_objs_re[curr_write], mem_objs_im[curr_write], inverse)
 
@@ -242,7 +255,8 @@ class FFTPlan:
 		# all kernels can execute in-place.
 		else:
 			for kinfo in self.kernels:
-				kinfo.prepare(batch)
+				if new_batch:
+					kinfo.prepare(batch)
 				kinfo.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
 					mem_objs_re[curr_write], mem_objs_im[curr_write], inverse)
 
