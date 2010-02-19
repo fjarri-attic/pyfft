@@ -222,7 +222,7 @@ class GlobalFFTKernel(_FFTKernel):
 	def createChain(plan, n, horiz_bs, dir, vert_bs):
 
 		batch_size = plan.min_mem_coalesce_width
-		vertical = False if dir == X_DIRECTION else True
+		vertical = not dir == X_DIRECTION
 
 		radix_arr, radix1_arr, radix2_arr = getGlobalRadixInfo(n)
 
