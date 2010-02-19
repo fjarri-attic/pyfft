@@ -136,6 +136,8 @@ class FFTPlan:
 
 	def execute(self, data_in, data_out=None, inverse=False, batch=1):
 
+		assert self._params.split == False, "This method can be used with interleaved arrays only"
+
 		inplace_done = False
 		if data_out is None:
 			data_out = data_in
@@ -201,6 +203,8 @@ class FFTPlan:
 				curr_write = 1
 
 	def executeSplit(self, data_in_re, data_in_im, data_out_re=None, data_out_im=None, inverse=False, batch=1):
+
+		assert self._params.split == True, "This method can be used with split arrays only"
 
 		inplace_done = False
 		if data_out_re is None and data_out_im is None:
