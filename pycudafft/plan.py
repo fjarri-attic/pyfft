@@ -16,21 +16,21 @@ _FFT_3D = 3
 
 SINGLE_PRECISION = 0
 
-class FFTPlan:
 
-	def __init__(self, x, y=None, z=None, split=False, precision=SINGLE_PRECISION, mempool=None):
+class _FFTParams:
 
-		if z is None:
-			if y is None:
-				self.dim = _FFT_1D
-			else:
-				self.dim = _FFT_2D
-		else:
-			self.dim = _FFT_3D
+	def __init__(self, x, y, z, split, precision, device):
 
 		self.x = x
 		self.y = 1 if y is None else y
 		self.z = 1 if z is None else z
+
+		self.size = self.x * self.y * self.z
+
+		if 2 ** log2(self.size) != self.size:
+			raise ValueError("Array dimensions must be powers of two")
+
+		self.split = split
 
 		if precision == SINGLE_PRECISION:
 			self.scalar = 'float'
@@ -40,84 +40,95 @@ class FFTPlan:
 		else:
 			raise ValueError("Precision is not supported: " + str(precision))
 
-		if mempool is None:
-			self.allocate = cuda.mem_alloc
-		else:
-			self.allocate = mempool.allocate
+		global_memory_word = self.scalar_nbytes if split else self.complex_nbytes
 
-		self.tempmemobj = None
-		self.tempmemobj_re = None
-		self.tempmemobj_im = None
+		devdata = DeviceData(device)
+		self.min_mem_coalesce_width = devdata.align_bytes(word_size=global_memory_word) / global_memory_word
+		self.num_smem_banks = devdata.smem_granularity
+		self.max_registers = device.get_attribute(device_attribute.MAX_REGISTERS_PER_BLOCK)
+		self.max_grid_x = 2 ** log2(device.get_attribute(device_attribute.MAX_GRID_DIM_X))
+		self.max_block_size = device.get_attribute(device_attribute.MAX_BLOCK_DIM_X)
 
-		self.split = split
-
-		for n in (self.x, self.y, self.z):
-			if 2 ** log2(n) != n:
-				raise ValueError("Array dimensions must be powers of two")
-
-		self.last_batch_size = 0
 		self.max_smem_fft_size = 2048
 		self.max_radix = 16
 
-		self.max_grid_x = 2 ** log2(device.get_attribute(device_attribute.MAX_GRID_DIM_X))
 
-		self.devdata = DeviceData()
+class FFTPlan:
 
-		global_memory_word = self.scalar_nbytes if split else self.complex_nbytes
-		self.min_mem_coalesce_width = self.devdata.align_bytes(word_size=global_memory_word) / global_memory_word
+	def __init__(self, x, y=None, z=None, split=False, precision=SINGLE_PRECISION, mempool=None):
 
-		self.num_smem_banks = self.devdata.smem_granularity
+		if z is None:
+			if y is None:
+				self._dim = _FFT_1D
+			else:
+				self._dim = _FFT_2D
+		else:
+			self._dim = _FFT_3D
 
-		self.max_block_size = device.get_attribute(device_attribute.MAX_BLOCK_DIM_X)
-		self.max_registers = device.get_attribute(device_attribute.MAX_REGISTERS_PER_BLOCK)
+		self._params = _FFTParams(x, y, z, split, precision, device)
+
+		if mempool is None:
+			self._allocate = cuda.mem_alloc
+		else:
+			self._allocate = mempool.allocate
+
+		self._tempmemobj = None
+		self._tempmemobj_re = None
+		self._tempmemobj_im = None
+
+		self._last_batch_size = 0
 
 		self._generateKernelCode()
 
 	def _generateKernelCode(self):
-		self.kernels = []
-		if self.dim == _FFT_1D:
-			self.kernels.extend(self._fft1D(X_DIRECTION))
-		elif self.dim == _FFT_2D:
-			self.kernels.extend(self._fft1D(X_DIRECTION))
-			self.kernels.extend(self._fft1D(Y_DIRECTION))
+		self._kernels = []
+		if self._dim == _FFT_1D:
+			self._kernels.extend(self._fft1D(X_DIRECTION))
+		elif self._dim == _FFT_2D:
+			self._kernels.extend(self._fft1D(X_DIRECTION))
+			self._kernels.extend(self._fft1D(Y_DIRECTION))
 		else:
-			self.kernels.extend(self._fft1D(X_DIRECTION))
-			self.kernels.extend(self._fft1D(Y_DIRECTION))
-			self.kernels.extend(self._fft1D(Z_DIRECTION))
+			self._kernels.extend(self._fft1D(X_DIRECTION))
+			self._kernels.extend(self._fft1D(Y_DIRECTION))
+			self._kernels.extend(self._fft1D(Z_DIRECTION))
 
-		self.temp_buffer_needed = False
-		for kinfo in self.kernels:
-			if not kinfo.in_place_possible:
-				self.temp_buffer_needed = True
+		self._temp_buffer_needed = False
+		for kernel in self._kernels:
+			if not kernel.in_place_possible:
+				self._temp_buffer_needed = True
 
 	def _fft1D(self, dir):
 
 		kernels = []
 
 		if dir == X_DIRECTION:
-			if self.x > self.max_smem_fft_size:
-				kernels.extend(GlobalFFTKernel.createChain(self, self.x, 1 , X_DIRECTION, 1))
-			elif self.x > 1:
-				radix_array = getRadixArray(self.x, 0)
-				if self.x / radix_array[0] <= self.max_block_size:
-					kernel = LocalFFTKernel(self, self.x)
-					kernel.compile(self.max_block_size)
+			if self._params.x > self._params.max_smem_fft_size:
+				kernels.extend(GlobalFFTKernel.createChain(self._params,
+					self._params.x, 1, X_DIRECTION, 1))
+			elif self._params.x > 1:
+				radix_array = getRadixArray(self._params.x, 0)
+				if self._params.x / radix_array[0] <= self._params.max_block_size:
+					kernel = LocalFFTKernel(self._params, self._params.x)
+					kernel.compile(self._params.max_block_size)
 					kernels.append(kernel)
 				else:
-					radix_array = getRadixArray(self.x, self.max_radix)
-					if self.x / radix_array[0] <= self.max_block_size:
-						kernel = LocalFFTKernel(self, self.x)
-						kernel.compile(self.max_block_size)
+					radix_array = getRadixArray(self._params.x, self._params.max_radix)
+					if self._params.x / radix_array[0] <= self._params.max_block_size:
+						kernel = LocalFFTKernel(self._params, self._params.x)
+						kernel.compile(self._params.max_block_size)
 						kernels.append(kernel)
 					else:
 						# TODO: find out which conditions are necessary to execute this code
-						kernels.extend(GlobalFFTKernel.createChain(self, self.x, 1 , X_DIRECTION, 1))
+						kernels.extend(GlobalFFTKernel.createChain(self._params,
+							self._params.x, 1 , X_DIRECTION, 1))
 		elif dir == Y_DIRECTION:
-			if self.y > 1:
-				kernels.extend(GlobalFFTKernel.createChain(self, self.y, self.x, Y_DIRECTION, 1))
+			if self._params.y > 1:
+				kernels.extend(GlobalFFTKernel.createChain(self._params, self._params.y,
+					self._params.x, Y_DIRECTION, 1))
 		elif dir == Z_DIRECTION:
-			if self.z > 1:
-				kernels.extend(GlobalFFTKernel.createChain(self, self.z, self.x * self.y, Z_DIRECTION, 1))
+			if self._params.z > 1:
+				kernels.extend(GlobalFFTKernel.createChain(self._params, self._params.z,
+					self._params.x * self._params.y, Z_DIRECTION, 1))
 		else:
 			raise ValueError("Wrong direction")
 
@@ -139,17 +150,17 @@ class FFTPlan:
 			data_out = data_out.gpudata
 
 		new_batch = False
-		if self.last_batch_size != batch:
-			self.last_batch_size = batch
+		if self._last_batch_size != batch:
+			self._last_batch_size = batch
 			new_batch = True
 
-		if self.temp_buffer_needed and new_batch:
-			self.last_batch_size = batch
-			self.tempmemobj = self.allocate(self.x * self.y * self.z * batch * self.complex_nbytes)
+		if self._temp_buffer_needed and new_batch:
+			self._last_batch_size = batch
+			self._tempmemobj = self._allocate(self._params.size * batch * self._params.complex_nbytes)
 
-		mem_objs = (data_in, data_out, self.tempmemobj)
+		mem_objs = (data_in, data_out, self._tempmemobj)
 
-		num_kernels = len(self.kernels)
+		num_kernels = len(self._kernels)
 
 		num_kernels_is_odd = (num_kernels % 2 == 1)
 		curr_read  = 0
@@ -157,7 +168,7 @@ class FFTPlan:
 
 		# at least one external dram shuffle (transpose) required
 		inplace_done = False
-		if self.temp_buffer_needed:
+		if self._temp_buffer_needed:
 			# in-place transform
 			if is_inplace:
 				curr_read  = 1
@@ -166,14 +177,14 @@ class FFTPlan:
 			else:
 				curr_write = 1 if num_kernels_is_odd else 2
 
-			for kinfo in self.kernels:
-				if is_inplace and num_kernels_is_odd and not inplace_done and kinfo.in_place_possible:
+			for kernel in self._kernels:
+				if is_inplace and num_kernels_is_odd and not inplace_done and kernel.in_place_possible:
 					curr_write = curr_read
 					inplace_done = True
 
 				if new_batch:
-					kinfo.prepare(batch)
-				kinfo.preparedCall(mem_objs[curr_read], mem_objs[curr_write], inverse)
+					kernel.prepare(batch)
+				kernel.preparedCall(mem_objs[curr_read], mem_objs[curr_write], inverse)
 
 				curr_read  = 1 if (curr_write == 1) else 2
 				curr_write = 2 if (curr_write == 1) else 1
@@ -181,10 +192,10 @@ class FFTPlan:
 		# no dram shuffle (transpose required) transform
 		# all kernels can execute in-place.
 		else:
-			for kinfo in self.kernels:
+			for kernel in self._kernels:
 				if new_batch:
-					kinfo.prepare(batch)
-				kinfo.preparedCall(mem_objs[curr_read], mem_objs[curr_write], inverse)
+					kernel.prepare(batch)
+				kernel.preparedCall(mem_objs[curr_read], mem_objs[curr_write], inverse)
 
 				curr_read  = 1
 				curr_write = 1
@@ -212,19 +223,19 @@ class FFTPlan:
 			data_out_im = data_out_im.gpudata
 
 		new_batch = False
-		if self.last_batch_size != batch:
-			self.last_batch_size = batch
+		if self._last_batch_size != batch:
+			self._last_batch_size = batch
 			new_batch = True
 
-		if self.temp_buffer_needed and new_batch:
-			self.last_batch_size = batch
-			self.tempmemobj_re = self.allocate(self.x * self.y * self.z * batch * self.scalar_nbytes)
-			self.tempmemobj_im = self.allocate(self.x * self.y * self.z * batch * self.scalar_nbytes)
+		if self._temp_buffer_needed and new_batch:
+			self._last_batch_size = batch
+			self._tempmemobj_re = self._allocate(self._params.size * batch * self._params.scalar_nbytes)
+			self._tempmemobj_im = self._allocate(self._params.size * batch * self._params.scalar_nbytes)
 
-		mem_objs_re = (data_in_re, data_out_re, self.tempmemobj_re)
-		mem_objs_im = (data_in_im, data_out_im, self.tempmemobj_im)
+		mem_objs_re = (data_in_re, data_out_re, self._tempmemobj_re)
+		mem_objs_im = (data_in_im, data_out_im, self._tempmemobj_im)
 
-		num_kernels = len(self.kernels)
+		num_kernels = len(self._kernels)
 
 		num_kernels_is_odd = (num_kernels % 2 == 1)
 		curr_read  = 0
@@ -232,7 +243,7 @@ class FFTPlan:
 
 		# at least one external dram shuffle (transpose) required
 		inplace_done = False
-		if self.temp_buffer_needed:
+		if self._temp_buffer_needed:
 			# in-place transform
 			if is_inplace:
 				curr_read  = 1
@@ -241,14 +252,14 @@ class FFTPlan:
 			else:
 				curr_write = 1 if num_kernels_is_odd else 2
 
-			for kinfo in self.kernels:
-				if is_inplace and num_kernels_is_odd and not inplace_done and kinfo.in_place_possible:
+			for kernel in self._kernels:
+				if is_inplace and num_kernels_is_odd and not inplace_done and kernel.in_place_possible:
 					curr_write = curr_read
 					inplace_done = True
 
 				if new_batch:
-					kinfo.prepare(batch)
-				kinfo.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
+					kernel.prepare(batch)
+				kernel.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
 					mem_objs_re[curr_write], mem_objs_im[curr_write], inverse)
 
 				curr_read  = 1 if (curr_write == 1) else 2
@@ -257,10 +268,10 @@ class FFTPlan:
 		# no dram shuffle (transpose required) transform
 		# all kernels can execute in-place.
 		else:
-			for kinfo in self.kernels:
+			for kernel in self._kernels:
 				if new_batch:
-					kinfo.prepare(batch)
-				kinfo.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
+					kernel.prepare(batch)
+				kernel.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
 					mem_objs_re[curr_write], mem_objs_im[curr_write], inverse)
 
 				curr_read  = 1
