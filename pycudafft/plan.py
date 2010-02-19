@@ -1,5 +1,4 @@
 from pycuda.autoinit import device
-from pycuda.compiler import SourceModule
 from pycuda.driver import device_attribute
 from pycuda.gpuarray import GPUArray
 import pycuda.driver as cuda
