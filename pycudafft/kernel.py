@@ -44,8 +44,6 @@ class _FFTKernel:
 				self.kernel_string = kernel_string
 			except AssertionError as e:
 				continue
-			except Exception as e: # TODO: filter only generation errors here
-				raise
 
 			module = SourceModule(kernel_string, no_extern_c=True)
 			func_ref_forward = module.get_function(self.kernel_name + "_forward")
@@ -60,7 +58,7 @@ class _FFTKernel:
 			break
 
 		if self.module is None:
-			raise Exception("Failed to compile kernel")
+			raise Exception("Failed to find block size for the kernel")
 
 	def prepare(self, batch):
 		if self.previous_batch != batch:

@@ -116,7 +116,7 @@ class FFTPlan:
 			if self.n.z > 1:
 				kernels.extend(GlobalFFTKernel.createChain(self, self.n.z, self.n.x * self.n.y, Z_DIRECTION, 1))
 		else:
-			raise Exception("Wrong direction")
+			raise ValueError("Wrong direction")
 
 		return kernels
 

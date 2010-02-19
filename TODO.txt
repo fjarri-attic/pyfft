@@ -1,7 +1,6 @@
 global:
     - check all TODO's in code
     - check work for big arrays and batch sizes (and for array size == 1 maybe, just in case)
-    - add own exception to library
     - check currently not working testcases (they were added in order to get 100% coverage on initially
       ported code; they do not work because of some bug in PyCuda)
     - add support for execution on custom device (not just on the one returned from autoinit)
