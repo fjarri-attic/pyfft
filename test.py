@@ -80,9 +80,9 @@ def getTestData(dim, x, y, z, batch, split):
 	if dim == FFT_1D:
 		dims = (x * batch,)
 	elif dim == FFT_2D:
-		dims = (x, y * batch)
+		dims = (y * batch, x)
 	elif dim == FFT_3D:
-		dims = (x, y, z * batch)
+		dims = (z * batch, y, x)
 
 	if split:
 		return rand_real(*dims), rand_real(*dims)
