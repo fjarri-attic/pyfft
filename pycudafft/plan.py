@@ -13,7 +13,7 @@ _FFT_2D = 2
 _FFT_3D = 3
 
 SINGLE_PRECISION = 0
-
+DOUBLE_PRECISION = 1
 
 class _FFTParams:
 	"""
