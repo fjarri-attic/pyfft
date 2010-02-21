@@ -2,7 +2,6 @@
 Part of this modules follows the design of Derek Anderson's pycublas.py and Nicolas Pinto's cufft.py"""
 import ctypes
 import transpose
-from typenames import *
 from ctypes import c_uint, c_int, c_float, POINTER
 
 from pycuda_util import float2, pointer
