@@ -107,7 +107,7 @@ Execute plan for interleaved data arrays.
 **Arguments**: ``execute(data_in, data_out=None, inverse=False, batch=1)``
 
 ``data_in``:
-  Input array.
+  Input array. PyCuda's ``GPUArray`` or anything that can be cast to memory pointer is supported.
 
 ``data_out``:
   Output array. If not defined, the execution will be performed in-place and the results
