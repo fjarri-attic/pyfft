@@ -13,25 +13,19 @@
 	#define mad(x, y, z) ((x) * (y) + (z))
 
 	## integer multiplication
-	#define mul24(x, y) ((x) * (y))
+	#define mul24(x, y) __mul24(x, y)
 
 	## TODO: add double-precision support
-	#define sin(x) __sinf(x)
-	#define cos(x) __cosf(x)
 	#define complex_exp(res, ang) __sincosf(ang, &(res.y), &(res.x))
 
 	inline ${complex} operator+(${complex} a, ${complex} b) { return complex_ctr(a.x + b.x, a.y + b.y); }
 	inline ${complex} operator-(${complex} a, ${complex} b) { return complex_ctr(a.x - b.x, a.y - b.y); }
 	inline ${complex} operator*(${complex} a, ${scalar}  b) { return complex_ctr(b * a.x, b * a.y); }
 	inline ${complex} operator/(${complex} a, int b) { return complex_ctr(a.x / b, a.y / b); }
-	inline ${complex} operator*(${complex} a, ${complex} b) { return complex_ctr(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
-
-	## This version (with mad() replaced by proper multiplication/addition function) would be
-	## slower, but more precise (because CUDA compiler replaces ususal multiplications and
-	## additions with non-IEEE compliant implementation)
-	## Don't know whether this precision is necessary, so this will stay commented for a while
-	##inline ${complex} operator *(${complex} a, ${complex} b) { \
-	##	return complex_ctr(mad(-(a).y, (b).y, (a).x * (b).x), mad((a).y, (b).x, (a).x * (b).y)); }
+	inline ${complex} operator*(${complex} a, ${complex} b)
+	{
+		return complex_ctr(mad(-a.y, b.y, a.x * b.x), mad(a.y, b.x, a.x * b.y));
+	}
 
 	#define conj(a) complex_ctr((a).x, -(a).y)
 	#define conjTransp(a) complex_ctr(-(a).y, (a).x)
