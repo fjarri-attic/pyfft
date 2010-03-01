@@ -1,8 +1,8 @@
-<%def name="insertBaseKernels(scalar, complex)">
+<%!
+	import math
+%>
 
-	#ifndef M_PI
-	#define M_PI ((${scalar})0x1.921fb54442d18p+1)
-	#endif
+<%def name="insertBaseKernels(scalar, complex)">
 
 	#define complex_ctr(x, y) make_${complex}(x, y)
 
@@ -530,7 +530,7 @@
 
 		%for k in range(1, radix):
 			<% ind = z * radix + k %>
-			ang = dir * ((${scalar})2 * (${scalar})M_PI * (${scalar})${k} / (${scalar})${data_len}) * angf;
+			ang = dir * (${scalar})${2 * math.pi * k / data_len} * angf;
 			complex_exp(w, ang);
 			a[${ind}] = a[${ind}] * w;
 		%endfor
@@ -844,7 +844,7 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 			${complex} w;
 
 		%for k in range(1, radix1):
-			ang = dir * ((${scalar})2 * (${scalar})M_PI * (${scalar})${k} / (${scalar})${radix}) * j;
+			ang = dir * (${scalar})${2 * math.pi * k / radix} * j;
 			complex_exp(w, ang);
 			a[${k}] = a[${k}] * w;
 		%endfor
@@ -882,7 +882,7 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 
 		int l = ((b_num << ${log2_batch_size}) + i) >> ${log2_stride_out};
 		int k = j << ${log2(radix1 / radix2)};
-		ang1 = dir * ((${scalar})2 * (${scalar})M_PI / (${scalar})${curr_n}) * l;
+		ang1 = dir * (${scalar})${2 * math.pi / curr_n} * l;
 		%for t in range(radix1):
 			ang = ang1 * (k + ${(t % radix2) * radix1 + (t / radix2)});
 			complex_exp(w, ang);
