@@ -287,4 +287,4 @@ def runPerformanceTests():
 	testPerformance(128, 128, 128)
 
 runErrorTests()
-#runPerformanceTests()
+runPerformanceTests()
