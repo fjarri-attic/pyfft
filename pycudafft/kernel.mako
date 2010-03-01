@@ -173,37 +173,17 @@
 	template<int dir>
 	__device__ void fftKernel32(${complex} *a)
 	{
-		fftKernel2S<dir>(a[0],  a[16]);
-		fftKernel2S<dir>(a[1],  a[17]);
-		fftKernel2S<dir>(a[2],  a[18]);
-		fftKernel2S<dir>(a[3],  a[19]);
-		fftKernel2S<dir>(a[4],  a[20]);
-		fftKernel2S<dir>(a[5],  a[21]);
-		fftKernel2S<dir>(a[6],  a[22]);
-		fftKernel2S<dir>(a[7],  a[23]);
-		fftKernel2S<dir>(a[8],  a[24]);
-		fftKernel2S<dir>(a[9],  a[25]);
-		fftKernel2S<dir>(a[10], a[26]);
-		fftKernel2S<dir>(a[11], a[27]);
-		fftKernel2S<dir>(a[12], a[28]);
-		fftKernel2S<dir>(a[13], a[29]);
-		fftKernel2S<dir>(a[14], a[30]);
-		fftKernel2S<dir>(a[15], a[31]);
-		a[17] = a[17] * complex_ctr((${scalar})0x1.f6297cp-1, (${scalar})0x1.8f8b84p-3 * dir);
-		a[18] = a[18] * complex_ctr((${scalar})0x1.d906bcp-1, (${scalar})0x1.87de2ap-2 * dir);
-		a[19] = a[19] * complex_ctr((${scalar})0x1.a9b662p-1, (${scalar})0x1.1c73b4p-1 * dir);
-		a[20] = a[20] * complex_ctr((${scalar})0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir);
-		a[21] = a[21] * complex_ctr((${scalar})0x1.1c73b4p-1, (${scalar})0x1.a9b662p-1 * dir);
-		a[22] = a[22] * complex_ctr((${scalar})0x1.87de2ap-2, (${scalar})0x1.d906bcp-1 * dir);
-		a[23] = a[23] * complex_ctr((${scalar})0x1.8f8b84p-3, (${scalar})0x1.f6297cp-1 * dir);
-		a[24] = a[24] * complex_ctr((${scalar})0x0p+0, (${scalar})0x1p+0 * dir);
-		a[25] = a[25] * complex_ctr((${scalar})-0x1.8f8b84p-3, (${scalar})0x1.f6297cp-1 * dir);
-		a[26] = a[26] * complex_ctr((${scalar})-0x1.87de2ap-2, (${scalar})0x1.d906bcp-1 * dir);
-		a[27] = a[27] * complex_ctr((${scalar})-0x1.1c73b4p-1, (${scalar})0x1.a9b662p-1 * dir);
-		a[28] = a[28] * complex_ctr((${scalar})-0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir);
-		a[29] = a[29] * complex_ctr((${scalar})-0x1.a9b662p-1, (${scalar})0x1.1c73b4p-1 * dir);
-		a[30] = a[30] * complex_ctr((${scalar})-0x1.d906bcp-1, (${scalar})0x1.87de2ap-2 * dir);
-		a[31] = a[31] * complex_ctr((${scalar})-0x1.f6297cp-1, (${scalar})0x1.8f8b84p-3 * dir);
+		%for i in range(16):
+			fftKernel2S<dir>(a[${i}], a[${i + 16}]);
+		%endfor
+
+		%for i in range(1, 16):
+			a[${i + 16}] = a[${i + 16}] * complex_ctr(
+				(${scalar})${math.cos(i * math.pi / 16)},
+				(${scalar})${math.sin(i * math.pi / 16)}
+			);
+		%endfor
+
 		fftKernel16<dir>(a);
 		fftKernel16<dir>(a + 16);
 		bitreverse32(a);
