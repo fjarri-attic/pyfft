@@ -137,9 +137,9 @@
 	template<int dir>
 	__device__ void fftKernel16(${complex} *a)
 	{
-		const ${scalar} w0 = (${scalar})0x1.d906bcp-1;
-		const ${scalar} w1 = (${scalar})0x1.87de2ap-2;
-		const ${scalar} w2 = (${scalar})0x1.6a09e6p-1;
+		const ${scalar} w0 = (${scalar})${math.cos(math.pi / 8)};
+		const ${scalar} w1 = (${scalar})${math.sin(math.pi / 8)};
+		const ${scalar} w2 = (${scalar})${math.sin(math.pi / 4)};
 		fftKernel4s<dir>(a[0], a[4], a[8],  a[12]);
 		fftKernel4s<dir>(a[1], a[5], a[9],  a[13]);
 		fftKernel4s<dir>(a[2], a[6], a[10], a[14]);
