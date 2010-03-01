@@ -30,57 +30,73 @@
 	#define conj(a) complex_ctr((a).x, -(a).y)
 	#define conjTransp(a) complex_ctr(-(a).y, (a).x)
 
+	template<class T>
+	__device__ void swap(T &a, T &b)
+	{
+		T c = a;
+		a = b;
+		b = c;
+	}
+
+	// shifts the sequence (a1, a2, a3, a4, a5) transforming it to
+	// (a5, a1, a2, a3, a4)
+	template<class T>
+	__device__ void shift(T &a1, T &a2, T &a3, T &a4, T &a5)
+	{
+		T c1, c2;
+		c1 = a2;
+		a2 = a1;
+		c2 = a3;
+		a3 = c1;
+		c1 = a4;
+		a4 = c2;
+		c2 = a5;
+		a5 = c1;
+		a1 = c2;
+	}
+
 	template<int dir>
 	__device__ void fftKernel2(${complex} *a)
 	{
-		${complex} c = (a)[0];
-		(a)[0] = c + (a)[1];
-		(a)[1] = c - (a)[1];
+		${complex} c = a[0];
+		a[0] = c + a[1];
+		a[1] = c - a[1];
 	}
 
 	template<int dir>
 	__device__ void fftKernel2S(${complex} &d1, ${complex} &d2)
 	{
-		${complex} c = (d1);
-		(d1) = c + (d2);
-		(d2) = c - (d2);
+		${complex} c = d1;
+		d1 = c + d2;
+		d2 = c - d2;
 	}
 
 	template<int dir>
 	__device__ void fftKernel4(${complex} *a)
 	{
-		fftKernel2S<dir>((a)[0], (a)[2]);
-		fftKernel2S<dir>((a)[1], (a)[3]);
-		fftKernel2S<dir>((a)[0], (a)[1]);
-		(a)[3] = conjTransp((a)[3]) * dir;
-		fftKernel2S<dir>((a)[2], (a)[3]);
-		${complex} c = (a)[1];
-		(a)[1] = (a)[2];
-		(a)[2] = c;
+		fftKernel2S<dir>(a[0], a[2]);
+		fftKernel2S<dir>(a[1], a[3]);
+		fftKernel2S<dir>(a[0], a[1]);
+		a[3] = conjTransp(a[3]) * dir;
+		fftKernel2S<dir>(a[2], a[3]);
+		swap(a[1], a[2]);
 	}
 
 	template<int dir>
 	__device__ void fftKernel4s(${complex} &a0, ${complex} &a1, ${complex} &a2, ${complex} &a3)
 	{
-		fftKernel2S<dir>((a0), (a2));
-		fftKernel2S<dir>((a1), (a3));
-		fftKernel2S<dir>((a0), (a1));
-		(a3) = conjTransp((a3)) * dir;
-		fftKernel2S<dir>((a2), (a3));
-		${complex} c = (a1);
-		(a1) = (a2);
-		(a2) = c;
+		fftKernel2S<dir>(a0, a2);
+		fftKernel2S<dir>(a1, a3);
+		fftKernel2S<dir>(a0, a1);
+		(a3) = conjTransp(a3) * dir;
+		fftKernel2S<dir>(a2, a3);
+		swap(a1, a2);
 	}
 
 	__device__ void bitreverse8(${complex} *a)
 	{
-		${complex} c;
-		c = (a)[1];
-		(a)[1] = (a)[4];
-		(a)[4] = c;
-		c = (a)[3];
-		(a)[3] = (a)[6];
-		(a)[6] = c;
+		swap(a[1], a[4]);
+		swap(a[3], a[6]);
 	}
 
 	template<int dir>
@@ -88,35 +104,34 @@
 	{
 		const ${complex} w1  = complex_ctr((${scalar})0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir);
 		const ${complex} w3  = complex_ctr((${scalar})-0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir);
-		fftKernel2S<dir>((a)[0], (a)[4]);
-		fftKernel2S<dir>((a)[1], (a)[5]);
-		fftKernel2S<dir>((a)[2], (a)[6]);
-		fftKernel2S<dir>((a)[3], (a)[7]);
-		(a)[5] = w1 * (a)[5];
-		(a)[6] = conjTransp((a)[6]) * dir;
-		(a)[7] = w3 * (a)[7];
-		fftKernel2S<dir>((a)[0], (a)[2]);
-		fftKernel2S<dir>((a)[1], (a)[3]);
-		fftKernel2S<dir>((a)[4], (a)[6]);
-		fftKernel2S<dir>((a)[5], (a)[7]);
-		(a)[3] = conjTransp((a)[3]) * dir;
-		(a)[7] = conjTransp((a)[7]) * dir;
-		fftKernel2S<dir>((a)[0], (a)[1]);
-		fftKernel2S<dir>((a)[2], (a)[3]);
-		fftKernel2S<dir>((a)[4], (a)[5]);
-		fftKernel2S<dir>((a)[6], (a)[7]);
-		bitreverse8((a));
+		fftKernel2S<dir>(a[0], a[4]);
+		fftKernel2S<dir>(a[1], a[5]);
+		fftKernel2S<dir>(a[2], a[6]);
+		fftKernel2S<dir>(a[3], a[7]);
+		a[5] = w1 * a[5];
+		a[6] = conjTransp(a[6]) * dir;
+		a[7] = w3 * a[7];
+		fftKernel2S<dir>(a[0], a[2]);
+		fftKernel2S<dir>(a[1], a[3]);
+		fftKernel2S<dir>(a[4], a[6]);
+		fftKernel2S<dir>(a[5], a[7]);
+		a[3] = conjTransp(a[3]) * dir;
+		a[7] = conjTransp(a[7]) * dir;
+		fftKernel2S<dir>(a[0], a[1]);
+		fftKernel2S<dir>(a[2], a[3]);
+		fftKernel2S<dir>(a[4], a[5]);
+		fftKernel2S<dir>(a[6], a[7]);
+		bitreverse8(a);
 	}
 
 	__device__ void bitreverse4x4(${complex} *a)
 	{
-		${complex} c;
-		c = (a)[1];  (a)[1]  = (a)[4];  (a)[4]  = c;
-		c = (a)[2];  (a)[2]  = (a)[8];  (a)[8]  = c;
-		c = (a)[3];  (a)[3]  = (a)[12]; (a)[12] = c;
-		c = (a)[6];  (a)[6]  = (a)[9];  (a)[9]  = c;
-		c = (a)[7];  (a)[7]  = (a)[13]; (a)[13] = c;
-		c = (a)[11]; (a)[11] = (a)[14]; (a)[14] = c;
+		swap(a[1], a[4]);
+		swap(a[2], a[8]);
+		swap(a[3], a[12]);
+		swap(a[6], a[9]);
+		swap(a[7], a[13]);
+		swap(a[11], a[14]);
 	}
 
 	template<int dir>
@@ -125,80 +140,73 @@
 		const ${scalar} w0 = (${scalar})0x1.d906bcp-1;
 		const ${scalar} w1 = (${scalar})0x1.87de2ap-2;
 		const ${scalar} w2 = (${scalar})0x1.6a09e6p-1;
-		fftKernel4s<dir>((a)[0], (a)[4], (a)[8],  (a)[12]);
-		fftKernel4s<dir>((a)[1], (a)[5], (a)[9],  (a)[13]);
-		fftKernel4s<dir>((a)[2], (a)[6], (a)[10], (a)[14]);
-		fftKernel4s<dir>((a)[3], (a)[7], (a)[11], (a)[15]);
-		(a)[5]  = (a)[5] * complex_ctr(w0, dir * w1);
-		(a)[6]  = (a)[6] * complex_ctr(w2, dir * w2);
-		(a)[7]  = (a)[7] * complex_ctr(w1, dir * w0);
-		(a)[9]  = (a)[9] * complex_ctr(w2, dir * w2);
-		(a)[10] = complex_ctr(dir, 0)*(conjTransp((a)[10]));
-		(a)[11] = (a)[11] * complex_ctr(-w2, dir * w2);
-		(a)[13] = (a)[13] * complex_ctr(w1, dir * w0);
-		(a)[14] = (a)[14] * complex_ctr(-w2, dir * w2);
-		(a)[15] = (a)[15] * complex_ctr(-w0, -dir * w1);
-		fftKernel4<dir>((a));
-		fftKernel4<dir>((a) + 4);
-		fftKernel4<dir>((a) + 8);
-		fftKernel4<dir>((a) + 12);
-		bitreverse4x4((a));
+		fftKernel4s<dir>(a[0], a[4], a[8],  a[12]);
+		fftKernel4s<dir>(a[1], a[5], a[9],  a[13]);
+		fftKernel4s<dir>(a[2], a[6], a[10], a[14]);
+		fftKernel4s<dir>(a[3], a[7], a[11], a[15]);
+		a[5]  = a[5] * complex_ctr(w0, dir * w1);
+		a[6]  = a[6] * complex_ctr(w2, dir * w2);
+		a[7]  = a[7] * complex_ctr(w1, dir * w0);
+		a[9]  = a[9] * complex_ctr(w2, dir * w2);
+		a[10] = complex_ctr(dir, 0) * (conjTransp(a[10]));
+		a[11] = a[11] * complex_ctr(-w2, dir * w2);
+		a[13] = a[13] * complex_ctr(w1, dir * w0);
+		a[14] = a[14] * complex_ctr(-w2, dir * w2);
+		a[15] = a[15] * complex_ctr(-w0, -dir * w1);
+		fftKernel4<dir>(a);
+		fftKernel4<dir>(a + 4);
+		fftKernel4<dir>(a + 8);
+		fftKernel4<dir>(a + 12);
+		bitreverse4x4(a);
 	}
 
 	__device__ void bitreverse32(${complex} *a)
 	{
-		${complex} c1, c2;
-		c1 = (a)[2];   (a)[2] = (a)[1];   c2 = (a)[4];   (a)[4] = c1;   c1 = (a)[8];
-		(a)[8] = c2;    c2 = (a)[16];  (a)[16] = c1;   (a)[1] = c2;
-		c1 = (a)[6];   (a)[6] = (a)[3];   c2 = (a)[12];  (a)[12] = c1;  c1 = (a)[24];
-		(a)[24] = c2;   c2 = (a)[17];  (a)[17] = c1;   (a)[3] = c2;
-		c1 = (a)[10];  (a)[10] = (a)[5];  c2 = (a)[20];  (a)[20] = c1;  c1 = (a)[9];
-		(a)[9] = c2;    c2 = (a)[18];  (a)[18] = c1;   (a)[5] = c2;
-		c1 = (a)[14];  (a)[14] = (a)[7];  c2 = (a)[28];  (a)[28] = c1;  c1 = (a)[25];
-		(a)[25] = c2;   c2 = (a)[19];  (a)[19] = c1;   (a)[7] = c2;
-		c1 = (a)[22];  (a)[22] = (a)[11]; c2 = (a)[13];  (a)[13] = c1;  c1 = (a)[26];
-		(a)[26] = c2;   c2 = (a)[21];  (a)[21] = c1;   (a)[11] = c2;
-		c1 = (a)[30];  (a)[30] = (a)[15]; c2 = (a)[29];  (a)[29] = c1;  c1 = (a)[27];
-		(a)[27] = c2;   c2 = (a)[23];  (a)[23] = c1;   (a)[15] = c2;
+		shift(a[1], a[2], a[4], a[8], a[16]);
+		shift(a[3], a[6], a[12], a[24], a[17]);
+		shift(a[5], a[10], a[20], a[9], a[18]);
+		shift(a[7], a[14], a[28], a[25], a[19]);
+		shift(a[11], a[22], a[13], a[26], a[21]);
+		shift(a[15], a[30], a[29], a[27], a[23]);
 	}
 
 	template<int dir>
 	__device__ void fftKernel32(${complex} *a)
 	{
-		fftKernel2S<dir>((a)[0],  (a)[16]);
-		fftKernel2S<dir>((a)[1],  (a)[17]);
-		fftKernel2S<dir>((a)[2],  (a)[18]);
-		fftKernel2S<dir>((a)[3],  (a)[19]);
-		fftKernel2S<dir>((a)[4],  (a)[20]);
-		fftKernel2S<dir>((a)[5],  (a)[21]);
-		fftKernel2S<dir>((a)[6],  (a)[22]);
-		fftKernel2S<dir>((a)[7],  (a)[23]);
-		fftKernel2S<dir>((a)[8],  (a)[24]);
-		fftKernel2S<dir>((a)[9],  (a)[25]);
-		fftKernel2S<dir>((a)[10], (a)[26]);
-		fftKernel2S<dir>((a)[11], (a)[27]);
-		fftKernel2S<dir>((a)[12], (a)[28]);
-		fftKernel2S<dir>((a)[13], (a)[29]);
-		fftKernel2S<dir>((a)[14], (a)[30]);
-		fftKernel2S<dir>((a)[15], (a)[31]);
-		(a)[17] = (a)[17] * complex_ctr((${scalar})0x1.f6297cp-1, (${scalar})0x1.8f8b84p-3 * dir);
-		(a)[18] = (a)[18] * complex_ctr((${scalar})0x1.d906bcp-1, (${scalar})0x1.87de2ap-2 * dir);
-		(a)[19] = (a)[19] * complex_ctr((${scalar})0x1.a9b662p-1, (${scalar})0x1.1c73b4p-1 * dir);
-		(a)[20] = (a)[20] * complex_ctr((${scalar})0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir);
-		(a)[21] = (a)[21] * complex_ctr((${scalar})0x1.1c73b4p-1, (${scalar})0x1.a9b662p-1 * dir);
-		(a)[22] = (a)[22] * complex_ctr((${scalar})0x1.87de2ap-2, (${scalar})0x1.d906bcp-1 * dir);
-		(a)[23] = (a)[23] * complex_ctr((${scalar})0x1.8f8b84p-3, (${scalar})0x1.f6297cp-1 * dir);
-		(a)[24] = (a)[24] * complex_ctr((${scalar})0x0p+0, (${scalar})0x1p+0 * dir);
-		(a)[25] = (a)[25] * complex_ctr((${scalar})-0x1.8f8b84p-3, (${scalar})0x1.f6297cp-1 * dir);
-		(a)[26] = (a)[26] * complex_ctr((${scalar})-0x1.87de2ap-2, (${scalar})0x1.d906bcp-1 * dir);
-		(a)[27] = (a)[27] * complex_ctr((${scalar})-0x1.1c73b4p-1, (${scalar})0x1.a9b662p-1 * dir);
-		(a)[28] = (a)[28] * complex_ctr((${scalar})-0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir);
-		(a)[29] = (a)[29] * complex_ctr((${scalar})-0x1.a9b662p-1, (${scalar})0x1.1c73b4p-1 * dir);
-		(a)[30] = (a)[30] * complex_ctr((${scalar})-0x1.d906bcp-1, (${scalar})0x1.87de2ap-2 * dir);
-		(a)[31] = (a)[31] * complex_ctr((${scalar})-0x1.f6297cp-1, (${scalar})0x1.8f8b84p-3 * dir);
-		fftKernel16<dir>((a));
-		fftKernel16<dir>((a) + 16);
-		bitreverse32((a));
+		fftKernel2S<dir>(a[0],  a[16]);
+		fftKernel2S<dir>(a[1],  a[17]);
+		fftKernel2S<dir>(a[2],  a[18]);
+		fftKernel2S<dir>(a[3],  a[19]);
+		fftKernel2S<dir>(a[4],  a[20]);
+		fftKernel2S<dir>(a[5],  a[21]);
+		fftKernel2S<dir>(a[6],  a[22]);
+		fftKernel2S<dir>(a[7],  a[23]);
+		fftKernel2S<dir>(a[8],  a[24]);
+		fftKernel2S<dir>(a[9],  a[25]);
+		fftKernel2S<dir>(a[10], a[26]);
+		fftKernel2S<dir>(a[11], a[27]);
+		fftKernel2S<dir>(a[12], a[28]);
+		fftKernel2S<dir>(a[13], a[29]);
+		fftKernel2S<dir>(a[14], a[30]);
+		fftKernel2S<dir>(a[15], a[31]);
+		a[17] = a[17] * complex_ctr((${scalar})0x1.f6297cp-1, (${scalar})0x1.8f8b84p-3 * dir);
+		a[18] = a[18] * complex_ctr((${scalar})0x1.d906bcp-1, (${scalar})0x1.87de2ap-2 * dir);
+		a[19] = a[19] * complex_ctr((${scalar})0x1.a9b662p-1, (${scalar})0x1.1c73b4p-1 * dir);
+		a[20] = a[20] * complex_ctr((${scalar})0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir);
+		a[21] = a[21] * complex_ctr((${scalar})0x1.1c73b4p-1, (${scalar})0x1.a9b662p-1 * dir);
+		a[22] = a[22] * complex_ctr((${scalar})0x1.87de2ap-2, (${scalar})0x1.d906bcp-1 * dir);
+		a[23] = a[23] * complex_ctr((${scalar})0x1.8f8b84p-3, (${scalar})0x1.f6297cp-1 * dir);
+		a[24] = a[24] * complex_ctr((${scalar})0x0p+0, (${scalar})0x1p+0 * dir);
+		a[25] = a[25] * complex_ctr((${scalar})-0x1.8f8b84p-3, (${scalar})0x1.f6297cp-1 * dir);
+		a[26] = a[26] * complex_ctr((${scalar})-0x1.87de2ap-2, (${scalar})0x1.d906bcp-1 * dir);
+		a[27] = a[27] * complex_ctr((${scalar})-0x1.1c73b4p-1, (${scalar})0x1.a9b662p-1 * dir);
+		a[28] = a[28] * complex_ctr((${scalar})-0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir);
+		a[29] = a[29] * complex_ctr((${scalar})-0x1.a9b662p-1, (${scalar})0x1.1c73b4p-1 * dir);
+		a[30] = a[30] * complex_ctr((${scalar})-0x1.d906bcp-1, (${scalar})0x1.87de2ap-2 * dir);
+		a[31] = a[31] * complex_ctr((${scalar})-0x1.f6297cp-1, (${scalar})0x1.8f8b84p-3 * dir);
+		fftKernel16<dir>(a);
+		fftKernel16<dir>(a + 16);
+		bitreverse32(a);
 	}
 </%def>
 
