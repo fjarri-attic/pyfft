@@ -844,6 +844,9 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 			${complex} w;
 
 		%for k in range(1, radix1):
+			## TODO: for some reason, writing it in form
+			## (${scalar})${2 * math.pi / radix} * (${scalar})${k} gives slightly better precision
+			## have to try it with double precision
 			ang = dir * (${scalar})${2 * math.pi * k / radix} * j;
 			complex_exp(w, ang);
 			a[${k}] = a[${k}] * w;

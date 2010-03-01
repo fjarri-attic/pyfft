@@ -142,7 +142,7 @@ def testErrors(x, y, z, batch, split):
 
 	buf_size_bytes = MAX_BUFFER_SIZE * 1024 * 1024
 	value_size = 8 # size of complex value, hardcoded (float, float)
-	epsilon = 1e-6 # TODO: it depends on value type; 1e-6 is for float
+	epsilon = 1.1e-6 # TODO: it depends on value type; 1e-6 is for float
 
 	# Skip test if resulting data size is too big
 	size = x * (1 if y is None else y) * (1 if z is None else z)
