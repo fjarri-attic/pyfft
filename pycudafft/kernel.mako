@@ -6,7 +6,7 @@
 
 	#define complex_ctr(x, y) make_${complex}(x, y)
 
-	## TODO: replace by intrinsincs
+	## TODO: replace by intrinsincs if necessary
 
 	## multiplication + addition
 	#define mad24(x, y, z) ((x) * (y) + (z))
