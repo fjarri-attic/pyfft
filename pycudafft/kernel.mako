@@ -102,8 +102,8 @@
 	template<int dir>
 	__device__ void fftKernel8(${complex} *a)
 	{
-		const ${complex} w1  = complex_ctr((${scalar})0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir);
-		const ${complex} w3  = complex_ctr((${scalar})-0x1.6a09e6p-1, (${scalar})0x1.6a09e6p-1 * dir);
+		const ${complex} w1  = complex_ctr((${scalar})${math.sin(math.pi / 4)}, (${scalar})${math.sin(math.pi / 4)} * dir);
+		const ${complex} w3  = complex_ctr((${scalar})-${math.sin(math.pi / 4)}, (${scalar})${math.sin(math.pi / 4)} * dir);
 		fftKernel2S<dir>(a[0], a[4]);
 		fftKernel2S<dir>(a[1], a[5]);
 		fftKernel2S<dir>(a[2], a[6]);
