@@ -14,6 +14,8 @@ FFT_2D = 1
 FFT_3D = 2
 
 MAX_BUFFER_SIZE = 16 # in megabytes
+COMPLEX_DTYPES = [numpy.complex64, numpy.complex128]
+DOUBLE_DTYPES = [numpy.float64, numpy.complex128]
 
 def log2(n):
 	pos = 0
@@ -23,18 +25,7 @@ def log2(n):
 			pos += pow
 	return pos
 
-def rand_real(*dims):
-	return numpy.random.randn(*dims).astype(numpy.float32)
-	#return numpy.ones(dims).astype(numpy.float32)
-
-def rand_complex(*dims):
-	real = rand_real(*dims)
-	imag = rand_real(*dims)
-	return (real + 1j * imag).astype(numpy.complex64)
-
 def difference(arr1, arr2, batch):
-	#diff = numpy.abs(arr1 - arr2) / numpy.abs(arr1)
-	#return diff.max()
 	diff_arr = numpy.abs(arr1 - arr2).ravel()
 	mod_arr = numpy.abs(arr1).ravel()
 
@@ -52,20 +43,16 @@ def difference(arr1, arr2, batch):
 
 	return avg / batch
 
-def numpy_fft_base(data, dim, len, batch, func):
-	res = []
-	for i in range(batch):
-		if dim == FFT_1D:
-			part = data[i*len : (i+1)*len]
-		elif dim == FFT_2D:
-			part = data[:, i*len : (i+1)*len]
-		elif dim == FFT_3D:
-			part = data[:, :, i*len : (i+1)*len]
-
-		x = func(part)
-		res.append(x)
-
-	return numpy.concatenate(tuple(res), axis=dim)
+def getDimensions(shape):
+	if isinstance(shape, int):
+		return shape, 1, 1
+	elif isinstance(shape, tuple):
+		if len(shape) == 1:
+			return shape[0], 1, 1
+		elif len(shape) == 2:
+			return shape[0], shape[1], 1
+		elif len(shape) == 3:
+			return shape[0], shape[1], shape[2]
 
 def getDim(x, y, z):
 	if z is None:
@@ -76,43 +63,49 @@ def getDim(x, y, z):
 	else:
 		return FFT_3D
 
-def getTestData(dim, x, y, z, batch, split):
-	if dim == FFT_1D:
-		dims = (x * batch,)
-	elif dim == FFT_2D:
-		dims = (y * batch, x)
-	elif dim == FFT_3D:
-		dims = (z * batch, y, x)
+def getTestArray(shape, dtype, batch):
+	arrays = []
+	for i in xrange(batch):
+		# arrays.append(numpy.ones(shape, dtype=dtype))
+		arrays.append(numpy.random.randn(*shape).astype(dtype))
 
-	if split:
-		return rand_real(*dims), rand_real(*dims)
+	return numpy.concatenate(arrays)
+
+def getTestData(shape, dtype, batch):
+	if dtype in COMPLEX_DTYPES:
+		if dtype == numpy.complex64:
+			float_dtype = numpy.float32
+		else:
+			float_dtype = numpy.float64
+
+		return (getTestArray(shape, float_dtype, batch) + \
+			1j * getTestArray(shape, float_dtype, batch)).astype(dtype)
 	else:
-		return rand_complex(*dims)
+		return getTestArray(shape, dtype, batch), \
+			getTestArray(shape, dtype, batch)
 
-def testPerformance(x, y=None, z=None):
+def testPerformance(shape):
 
+	dtype = numpy.complex64
 	buf_size_bytes = MAX_BUFFER_SIZE * 1024 * 1024
-	value_size = 8
+	value_size = dtype().nbytes
 	iterations = 10
 
-	batch = buf_size_bytes / (x * (1 if y is None else y) *
-		(1 if z is None else z) * value_size)
+	x, y, z = getDimensions(shape)
+	batch = buf_size_bytes / (x * y * z * value_size)
 
 	if batch == 0:
 		print "Buffer size is too big, skipping test"
 		return
 
-	dim = getDim(x, y, z)
-	data = getTestData(dim, x, y, z, batch, False)
+	data = getTestData(shape, dtype, batch=batch)
 
 	a_gpu = gpuarray.to_gpu(data)
 	b_gpu = gpuarray.GPUArray(data.shape, dtype=data.dtype)
 
-	plan = FFTPlan(x, y, z)
-	cufft_plan = CUFFTPlan(x, y, z, batch=batch)
+	plan = FFTPlan(shape)
+	cufft_plan = CUFFTPlan(shape, batch=batch)
 
-	y = 1 if y is None else y
-	z = 1 if z is None else z
 	gflop = 5.0e-9 * (log2(x) + log2(y) + log2(z)) * x * y * z * batch
 
 	start = cuda.Event()
@@ -134,35 +127,42 @@ def testPerformance(x, y=None, z=None):
 	stop.synchronize()
 	t_cufft = stop.time_since(start) / 1000.0 / iterations # in seconds
 
-	print "* pycudafft performance: " + str([x, y, z]) + ", batch " + str(batch) + ": " + \
+	print "* pycudafft performance: " + str(shape) + ", batch " + str(batch) + ": " + \
 		str(t_pycudafft * 1000) + " ms, " + str(gflop / t_pycudafft) + " GFLOPS"
 	print "cufft: " + str(t_cufft * 1000) + " ms, " + str(gflop / t_cufft) + " GFLOPS"
 
-def testErrors(x, y, z, batch, split):
+def testErrors(shape, dtype, batch):
 
 	buf_size_bytes = MAX_BUFFER_SIZE * 1024 * 1024
-	value_size = 8 # size of complex value, hardcoded (float, float)
-	epsilon = 1.1e-6 # TODO: it depends on value type; 1e-6 is for float
+	value_size = dtype().nbytes
+
+	if dtype in DOUBLE_DTYPES:
+		epsilon = 1e-16
+	else:
+		epsilon = 1.1e-6
 
 	# Skip test if resulting data size is too big
-	size = x * (1 if y is None else y) * (1 if z is None else z)
+	x, y, z = getDimensions(shape)
+	size = x * y * z
 	if size * batch * value_size > buf_size_bytes:
 		return
 
-	dim = getDim(x, y, z)
+	split = (dtype not in COMPLEX_DTYPES)
+	complex_dtype = numpy.complex128 if dtype in DOUBLE_DTYPES else numpy.complex64
 
 	if split:
-		data_re, data_im = getTestData(dim, x, y, z, batch, split)
-		data = (data_re + 1j * data_im).astype(numpy.complex64)
+		data_re, data_im = getTestData(shape, dtype, batch)
+		data = (data_re + 1j * data_im).astype(complex_dtype)
 	else:
-		data = getTestData(dim, x, y, z, batch, split)
+		data = getTestData(shape, dtype, batch)
 
 	# Prepare arrays
 	a_gpu = gpuarray.to_gpu(data)
 	b_gpu = gpuarray.GPUArray(data.shape, dtype=data.dtype)
 
 	# CUFFT tests
-	cufft_plan = CUFFTPlan(x, y, z, batch=batch)
+
+	cufft_plan = CUFFTPlan(shape, dtype=complex_dtype, batch=batch)
 
 	cufft_plan.execute(a_gpu, b_gpu)
 	cufft_fw = b_gpu.get()
@@ -184,7 +184,7 @@ def testErrors(x, y, z, batch, split):
 
 	# pycudafft tests
 
-	plan = FFTPlan(x, y, z, split=split, normalize=True)
+	plan = FFTPlan(shape, dtype=dtype, normalize=True)
 
 	# out of place forward
 	if split:
@@ -247,44 +247,42 @@ def testErrors(x, y, z, batch, split):
 
 def runErrorTests():
 
-	def wrapper(x, y=None, z=None, batch=1, split=False):
+	def wrapper(shape, dtype, batch=1):
 		try:
-			testErrors(x, y, z, batch=batch, split=split)
+			testErrors(shape, dtype, batch=batch)
 		except Exception, e:
-			print "failed: " + str([x, y, z]) + ", batch " + str(batch) + \
-				", " + ("split" if split else "interleaved") + \
-				": " + str(e)
+			print "failed: " + str(shape) + ", batch " + str(batch) + \
+				", dtype " + str(dtype) + ": " + str(e)
 
-	for split in [False, True]:
+	for dtype in [numpy.float32, numpy.complex64]:
 		for batch in [1, 16, 128, 1024, 4096]:
 
 			# 1D
 			for x in [3, 8, 9, 10, 11, 13, 20]:
-				wrapper(2 ** x, batch=batch, split=split)
+				wrapper((2 ** x,), dtype, batch=batch)
 
 			# 2D
 			for x in [4, 7, 8, 10]:
 				for y in [4, 7, 8, 10]:
-					wrapper(2 ** x, 2 ** y, batch=batch, split=split)
+					wrapper((2 ** x, 2 ** y), dtype, batch=batch)
 
 			# 3D
 			for x in [4, 7, 10]:
 				for y in [4, 7, 10]:
 					for z in [4, 7, 10]:
-						wrapper(2 ** x, 2 ** y, 2 ** z, batch=batch, split=split)
+						wrapper((2 ** x, 2 ** y, 2 ** z), dtype, batch=batch)
 
-	wrapper(16) # while plan.mem_coalesce_with = 32
+		wrapper((16,), dtype, batch=batch) # while plan.mem_coalesce_with = 32
 
 def runPerformanceTests():
-	testPerformance(16)
-	testPerformance(1024)
-	testPerformance(8192)
-	testPerformance(16, 16)
-	testPerformance(128, 128)
-	testPerformance(1024, 1024)
-	testPerformance(16, 16, 16)
-	testPerformance(32, 32, 128)
-	testPerformance(128, 128, 128)
+	shapes = [
+		(16,), (1024,), (8192,), # 1D
+		(16, 16), (128, 128), (1024, 1024), # 2D
+		(16, 16, 16), (32, 32, 128), (128, 128, 128) # 3D
+	]
+
+	for shape in shapes:
+		testPerformance(shape)
 
 runErrorTests()
 runPerformanceTests()

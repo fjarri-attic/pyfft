@@ -35,7 +35,7 @@ Then the plan must be created. The creation is not very fast, mainly because of 
 compilation speed. But, fortunately, ``PyCuda`` caches compiled sources, so if you
 use the same plan for each run of your program, it will be created pretty fast.
 
- >>> plan = FFTPlan(16, 16)
+ >>> plan = FFTPlan((16, 16))
 
 Now, let's prepare simple test array and try to execute plan over it:
 
@@ -74,20 +74,21 @@ FFTPlan
 
 Class, containing precalculated FFT plan.
 
-**Arguments**: ``FFTPlan(x, y=None, z=None, split=False, precision=SINGLE_PRECISION,
-mempool=None, device=None, normalize=True)``
+**Arguments**: ``FFTPlan(shape, dtype=numpy.complex64, mempool=None, device=None, normalize=True)``
 
-``x``, ``y``, ``z``:
-  Problem size. If ``z`` and/or ``y`` are not defined, 2D or 1D plan will be created.
+``shape``:
+  Problem size. Can be integer or tuple with 1, 2 or 3 integer elements. Each dimension must be
+  a power of two.
 
   **Warning**: 2D and 3D plans with ``y`` == 1 or ``z`` == 1 are not supported at the moment.
 
-``split``:
-  If ``True``, the plan will support separate data arrays with real and imaginary parts
-  instead of interleaved arrays.
+``dtype``:
+  Numpy data type for input/output arrays. If complex data type is given, plan for interleaved
+  arrays will be created. If scalar data type is given, plan will work for data arrays with
+  separate real and imaginary parts. Depending on this parameter, either `execute()`_ or
+  `executeSplit()`_ will work, while other will raise an exception.
 
-``precision``:
-  Size of data type to use. At the moment only ``SINGLE_PRECISION`` is supported.
+  *Currently supported*: ``numpy.complex64`` and ``numpy.float32``.
 
 ``mempool``:
   If specified, method ``allocate`` of this object will be used to create temporary buffers.
@@ -98,6 +99,8 @@ mempool=None, device=None, normalize=True)``
 ``normalize``:
   Whether to normalize inverse FFT so that IFFT(FFT(signal)) == signal. If equals to ``False``,
   IFFT(FFT(signal)) == signal * x * y * z.
+
+.. _execute():
 
 FFTPlan.execute()
 ~~~~~~~~~~~~~~~~~
@@ -118,6 +121,8 @@ Execute plan for interleaved data arrays.
 
 ``batch``:
   Number of data sets to process. They should be located successively in ``data_in``.
+
+.. _executeSplit():
 
 FFTPlan.executeSplit()
 ~~~~~~~~~~~~~~~~~~~~~~

@@ -21,28 +21,24 @@ class _FFTParams:
 	Contains different device and FFT plan parameters.
 	"""
 
-	def __init__(self, x, y, z, split, precision, device):
+	def __init__(self, shape, dtype, device):
 
-		self.x = x
-		self.y = 1 if y is None else y
-		self.z = 1 if z is None else z
-
+		self.x, self.y, self.z = shape
 		self.size = self.x * self.y * self.z
 
 		if 2 ** log2(self.size) != self.size:
 			raise ValueError("Array dimensions must be powers of two")
 
-		self.split = split
-
-		if precision == SINGLE_PRECISION:
+		if dtype == numpy.complex64 or dtype == numpy.float32:
+			self.split = True if dtype == numpy.float32 else False
 			self.scalar = 'float'
 			self.complex = 'float2'
 			self.scalar_nbytes = 4
 			self.complex_nbytes = 8
 		else:
-			raise ValueError("Precision is not supported: " + str(precision))
+			raise ValueError("Data type is not supported: " + str(dtype))
 
-		global_memory_word = self.scalar_nbytes if split else self.complex_nbytes
+		global_memory_word = self.scalar_nbytes if self.split else self.complex_nbytes
 
 		devdata = DeviceData(device)
 		self.min_mem_coalesce_width = devdata.align_bytes(word_size=global_memory_word) / global_memory_word
@@ -59,22 +55,29 @@ class FFTPlan:
 	"""
 	Class for FFT plan preparation and execution.
 	"""
+	def __init__(self, shape, dtype=numpy.complex64, mempool=None, device=None, normalize=True):
 
-	def __init__(self, x, y=None, z=None, split=False, precision=SINGLE_PRECISION,
-		mempool=None, device=None, normalize=True):
-
-		if z is None:
-			if y is None:
+		if isinstance(shape, int):
+			self._dim = _FFT_1D
+			shape = (shape, 1, 1)
+		elif isinstance(shape, tuple):
+			if len(shape) == 1:
 				self._dim = _FFT_1D
-			else:
+				shape = (shape[0], 1, 1)
+			elif len(shape) == 2:
 				self._dim = _FFT_2D
+				shape = (shape[0], shape[1], 1)
+			elif len(shape) == 3:
+				self._dim = _FFT_3D
+			else:
+				raise ValueError("Wrong shape")
 		else:
-			self._dim = _FFT_3D
+			raise ValueError("Wrong shape")
 
 		if device is None:
 			from pycuda.autoinit import device
 
-		self._params = _FFTParams(x, y, z, split, precision, device)
+		self._params = _FFTParams(shape, dtype, device)
 		self._normalize = normalize
 
 		if mempool is None:
@@ -168,6 +171,7 @@ class FFTPlan:
 		if self._temp_buffer_needed and new_batch:
 			self._last_batch_size = batch
 			buffer_size = self._params.size * batch * self._params.scalar_nbytes
+
 			if split:
 				self._tempmemobj_re = self._allocate(buffer_size)
 				self._tempmemobj_im = self._allocate(buffer_size)

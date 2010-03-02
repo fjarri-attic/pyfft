@@ -11,18 +11,26 @@ _FFT_3D = 3
 
 class CUFFTPlan:
 
-	def __init__(self, x, y=None, z=None, batch=1, dtype=numpy.complex64):
-		if z is None:
-			if y is None:
-				self._dim = _FFT_1D
-			else:
-				self._dim = _FFT_2D
-		else:
-			self._dim = _FFT_3D
+	def __init__(self, shape, dtype=numpy.complex64, batch=1):
 
-		self._x = x
-		self._y = 1 if y is None else y
-		self._z = 1 if z is None else z
+		if isinstance(shape, int):
+			self._dim = _FFT_1D
+			shape = (shape, 1, 1)
+		elif isinstance(shape, tuple):
+			if len(shape) == 1:
+				self._dim = _FFT_1D
+				shape = (shape[0], 1, 1)
+			elif len(shape) == 2:
+				self._dim = _FFT_2D
+				shape = (shape[0], shape[1], 1)
+			elif len(shape) == 3:
+				self._dim = _FFT_3D
+			else:
+				raise ValueError("Wrong shape")
+		else:
+			raise ValueError("Wrong shape")
+
+		self._x, self._y, self._z = shape
 		self._batch = batch
 
 		if dtype != numpy.complex64:
