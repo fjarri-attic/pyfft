@@ -15,7 +15,6 @@ open(os.path.join(os.path.dirname(__file__), 'documentation.rst'), 'w').write(DO
 setup(
 	name='pyfft',
 	packages=['pyfft'],
-	provides=['pyfft'],
 	requires=['mako', 'numpy'],
 	version=VERSION,
 	author='Bogdan Opanchuk',
