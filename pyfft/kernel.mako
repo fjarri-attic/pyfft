@@ -1,193 +1,226 @@
 <%!
 	import math
+	dirs = [1, -1]
+	postfix = {1: "Inv", -1: "Fwd"}
 %>
 
 <%def name="insertBaseKernels(scalar, complex)">
 
-	#define complex_ctr(x, y) make_${complex}(x, y)
+	%if cuda:
+		#define complex_ctr(x, y) make_${complex}(x, y)
+	%else:
+		#define complex_ctr(x, y) (${complex})(x, y)
+	%endif
 
 	## TODO: replace by intrinsincs if necessary
 
-	## multiplication + addition
-	#define mad24(x, y, z) ((x) * (y) + (z))
-	#define mad(x, y, z) ((x) * (y) + (z))
+	%if cuda:
+		## multiplication + addition
+		#define mad24(x, y, z) ((x) * (y) + (z))
+		#define mad(x, y, z) ((x) * (y) + (z))
 
-	## integer multiplication
-	#define mul24(x, y) __mul24(x, y)
+		## integer multiplication
+		#define mul24(x, y) __mul24(x, y)
+	%endif
 
 	## TODO: add double-precision support
-	#define complex_exp(res, ang) __sincosf(ang, &(res.y), &(res.x))
+	%if cuda:
+		#define complex_exp(res, ang) __sincosf(ang, &((res).y), &((res).x))
+	%else:
+		#define complex_exp(res, ang) (res).x = native_cos(ang); (res).y = native_sin(ang)
+	%endif
 
-	inline ${complex} operator+(${complex} a, ${complex} b) { return complex_ctr(a.x + b.x, a.y + b.y); }
-	inline ${complex} operator-(${complex} a, ${complex} b) { return complex_ctr(a.x - b.x, a.y - b.y); }
-	inline ${complex} operator*(${complex} a, ${scalar}  b) { return complex_ctr(b * a.x, b * a.y); }
-	inline ${complex} operator/(${complex} a, int b) { return complex_ctr(a.x / b, a.y / b); }
-	inline ${complex} operator*(${complex} a, ${complex} b)
-	{
-		return complex_ctr(mad(-a.y, b.y, a.x * b.x), mad(a.y, b.x, a.x * b.y));
-	}
+	%if cuda:
+		inline ${complex} operator+(${complex} a, ${complex} b) { return complex_ctr(a.x + b.x, a.y + b.y); }
+		inline ${complex} operator-(${complex} a, ${complex} b) { return complex_ctr(a.x - b.x, a.y - b.y); }
+		inline ${complex} operator*(${complex} a, ${scalar}  b) { return complex_ctr(b * a.x, b * a.y); }
+		inline ${complex} operator/(${complex} a, int b) { return complex_ctr(a.x / b, a.y / b); }
+		inline ${complex} operator*(${complex} a, ${complex} b)
+		{
+			return complex_ctr(mad(-a.y, b.y, a.x * b.x), mad(a.y, b.x, a.x * b.y));
+		}
+	%endif
 
 	#define conj(a) complex_ctr((a).x, -(a).y)
 	#define conjTransp(a) complex_ctr(-(a).y, (a).x)
 
-	template<class T>
-	__device__ void swap(T &a, T &b)
+	%if cuda:
+		#define DEVICE __device__
+		#define GLOBAL __global__
+		#define LOCAL
+		#define SYNC __syncthreads()
+	%else:
+		#define DEVICE
+		#define GLOBAL
+		#define LOCAL __local
+		#define SYNC barrier(CLK_LOCAL_MEM_FENCE)
+	%endif
+
+	DEVICE void swap(LOCAL ${complex} *a, LOCAL ${complex} *b)
 	{
-		T c = a;
-		a = b;
-		b = c;
+		${complex} c = *a;
+		*a = *b;
+		*b = c;
 	}
 
 	// shifts the sequence (a1, a2, a3, a4, a5) transforming it to
 	// (a5, a1, a2, a3, a4)
-	template<class T>
-	__device__ void shift32(T &a1, T &a2, T &a3, T &a4, T &a5)
+	DEVICE void shift32(LOCAL ${complex} *a1, LOCAL ${complex} *a2, LOCAL ${complex} *a3,
+		LOCAL ${complex} *a4, LOCAL ${complex} *a5)
 	{
-		T c1, c2;
-		c1 = a2;
-		a2 = a1;
-		c2 = a3;
-		a3 = c1;
-		c1 = a4;
-		a4 = c2;
-		c2 = a5;
-		a5 = c1;
-		a1 = c2;
+		${complex} c1, c2;
+		c1 = *a2;
+		*a2 = *a1;
+		c2 = *a3;
+		*a3 = c1;
+		c1 = *a4;
+		*a4 = c2;
+		c2 = *a5;
+		*a5 = c1;
+		*a1 = c2;
 	}
 
-	template<int dir>
-	__device__ void fftKernel2(${complex} *a)
+	%for dir in dirs:
+		DEVICE void fftKernel2${postfix[dir]}(LOCAL ${complex} *a)
+		{
+			${complex} c = a[0];
+			a[0] = c + a[1];
+			a[1] = c - a[1];
+		}
+	%endfor
+
+	%for dir in dirs:
+		DEVICE void fftKernel2S${postfix[dir]}(LOCAL ${complex} *d1, LOCAL ${complex} *d2)
+		{
+			${complex} c = *d1;
+			*d1 = c + *d2;
+			*d2 = c - *d2;
+		}
+	%endfor
+
+	%for dir in dirs:
+		DEVICE void fftKernel4${postfix[dir]}(LOCAL ${complex} *a)
+		{
+			fftKernel2S${postfix[dir]}(a + 0, a + 2);
+			fftKernel2S${postfix[dir]}(a + 1, a + 3);
+			fftKernel2S${postfix[dir]}(a + 0, a + 1);
+			a[3] = conjTransp(a[3]) * ${dir};
+			fftKernel2S${postfix[dir]}(a + 2, a + 3);
+			swap(a + 1, a + 2);
+		}
+	%endfor
+
+	%for dir in dirs:
+		DEVICE void fftKernel4s${postfix[dir]}(LOCAL ${complex} *a0, LOCAL ${complex} *a1,
+			LOCAL ${complex} *a2, LOCAL ${complex} *a3)
+		{
+			fftKernel2S${postfix[dir]}(a0, a2);
+			fftKernel2S${postfix[dir]}(a1, a3);
+			fftKernel2S${postfix[dir]}(a0, a1);
+			*a3 = conjTransp(*a3) * ${dir};
+			fftKernel2S${postfix[dir]}(a2, a3);
+			swap(a1, a2);
+		}
+	%endfor
+
+	DEVICE void bitreverse8(LOCAL ${complex} *a)
 	{
-		${complex} c = a[0];
-		a[0] = c + a[1];
-		a[1] = c - a[1];
+		swap(a + 1, a + 4);
+		swap(a + 3, a + 6);
 	}
 
-	template<int dir>
-	__device__ void fftKernel2S(${complex} &d1, ${complex} &d2)
+	%for dir in dirs:
+		DEVICE void fftKernel8${postfix[dir]}(LOCAL ${complex} *a)
+		{
+			const ${complex} w1  = complex_ctr((${scalar})${math.sin(math.pi / 4)}, (${scalar})${math.sin(math.pi / 4) * dir});
+			const ${complex} w3  = complex_ctr((${scalar})-${math.sin(math.pi / 4)}, (${scalar})${math.sin(math.pi / 4) * dir});
+			fftKernel2S${postfix[dir]}(a + 0, a + 4);
+			fftKernel2S${postfix[dir]}(a + 1, a + 5);
+			fftKernel2S${postfix[dir]}(a + 2, a + 6);
+			fftKernel2S${postfix[dir]}(a + 3, a + 7);
+			a[5] = w1 * a[5];
+			a[6] = conjTransp(a[6]) * ${dir};
+			a[7] = w3 * a[7];
+			fftKernel2S${postfix[dir]}(a + 0, a + 2);
+			fftKernel2S${postfix[dir]}(a + 1, a + 3);
+			fftKernel2S${postfix[dir]}(a + 4, a + 6);
+			fftKernel2S${postfix[dir]}(a + 5, a + 7);
+			a[3] = conjTransp(a[3]) * ${dir};
+			a[7] = conjTransp(a[7]) * ${dir};
+			fftKernel2S${postfix[dir]}(a + 0, a + 1);
+			fftKernel2S${postfix[dir]}(a + 2, a + 3);
+			fftKernel2S${postfix[dir]}(a + 4, a + 5);
+			fftKernel2S${postfix[dir]}(a + 6, a + 7);
+			bitreverse8(a);
+		}
+	%endfor
+
+	DEVICE void bitreverse4x4(LOCAL ${complex} *a)
 	{
-		${complex} c = d1;
-		d1 = c + d2;
-		d2 = c - d2;
+		swap(a + 1, a + 4);
+		swap(a + 2, a + 8);
+		swap(a + 3, a + 12);
+		swap(a + 6, a + 9);
+		swap(a + 7, a + 13);
+		swap(a + 11, a + 14);
 	}
 
-	template<int dir>
-	__device__ void fftKernel4(${complex} *a)
+	%for dir in dirs:
+		DEVICE void fftKernel16${postfix[dir]}(LOCAL ${complex} *a)
+		{
+			const ${scalar} w0 = (${scalar})${math.cos(math.pi / 8)};
+			const ${scalar} w1 = (${scalar})${math.sin(math.pi / 8)};
+			const ${scalar} w2 = (${scalar})${math.sin(math.pi / 4)};
+			fftKernel4s${postfix[dir]}(a + 0, a + 4, a + 8,  a + 12);
+			fftKernel4s${postfix[dir]}(a + 1, a + 5, a + 9,  a + 13);
+			fftKernel4s${postfix[dir]}(a + 2, a + 6, a + 10, a + 14);
+			fftKernel4s${postfix[dir]}(a + 3, a + 7, a + 11, a + 15);
+			a[5]  = a[5] * complex_ctr(w0, ${dir} * w1);
+			a[6]  = a[6] * complex_ctr(w2, ${dir} * w2);
+			a[7]  = a[7] * complex_ctr(w1, ${dir} * w0);
+			a[9]  = a[9] * complex_ctr(w2, ${dir} * w2);
+			a[10] = complex_ctr(${dir}, 0) * (conjTransp(a[10]));
+			a[11] = a[11] * complex_ctr(-w2, ${dir} * w2);
+			a[13] = a[13] * complex_ctr(w1, ${dir} * w0);
+			a[14] = a[14] * complex_ctr(-w2, ${dir} * w2);
+			a[15] = a[15] * complex_ctr(-w0, ${-dir} * w1);
+			fftKernel4${postfix[dir]}(a);
+			fftKernel4${postfix[dir]}(a + 4);
+			fftKernel4${postfix[dir]}(a + 8);
+			fftKernel4${postfix[dir]}(a + 12);
+			bitreverse4x4(a);
+		}
+	%endfor
+
+	DEVICE void bitreverse32(LOCAL ${complex} *a)
 	{
-		fftKernel2S<dir>(a[0], a[2]);
-		fftKernel2S<dir>(a[1], a[3]);
-		fftKernel2S<dir>(a[0], a[1]);
-		a[3] = conjTransp(a[3]) * dir;
-		fftKernel2S<dir>(a[2], a[3]);
-		swap(a[1], a[2]);
+		shift32(a + 1, a + 2, a + 4, a + 8, a + 16);
+		shift32(a + 3, a + 6, a + 12, a + 24, a + 17);
+		shift32(a + 5, a + 10, a + 20, a + 9, a + 18);
+		shift32(a + 7, a + 14, a + 28, a + 25, a + 19);
+		shift32(a + 11, a + 22, a + 13, a + 26, a + 21);
+		shift32(a + 15, a + 30, a + 29, a + 27, a + 23);
 	}
 
-	template<int dir>
-	__device__ void fftKernel4s(${complex} &a0, ${complex} &a1, ${complex} &a2, ${complex} &a3)
-	{
-		fftKernel2S<dir>(a0, a2);
-		fftKernel2S<dir>(a1, a3);
-		fftKernel2S<dir>(a0, a1);
-		(a3) = conjTransp(a3) * dir;
-		fftKernel2S<dir>(a2, a3);
-		swap(a1, a2);
-	}
+	%for dir in dirs:
+		DEVICE void fftKernel32${postfix[dir]}(LOCAL ${complex} *a)
+		{
+			%for i in range(16):
+				fftKernel2S${postfix[dir]}(a + ${i}, a + ${i + 16});
+			%endfor
 
-	__device__ void bitreverse8(${complex} *a)
-	{
-		swap(a[1], a[4]);
-		swap(a[3], a[6]);
-	}
+			%for i in range(1, 16):
+				a[${i + 16}] = a[${i + 16}] * complex_ctr(
+					(${scalar})${math.cos(i * math.pi / 16)},
+					(${scalar})${math.sin(i * math.pi / 16)}
+				);
+			%endfor
 
-	template<int dir>
-	__device__ void fftKernel8(${complex} *a)
-	{
-		const ${complex} w1  = complex_ctr((${scalar})${math.sin(math.pi / 4)}, (${scalar})${math.sin(math.pi / 4)} * dir);
-		const ${complex} w3  = complex_ctr((${scalar})-${math.sin(math.pi / 4)}, (${scalar})${math.sin(math.pi / 4)} * dir);
-		fftKernel2S<dir>(a[0], a[4]);
-		fftKernel2S<dir>(a[1], a[5]);
-		fftKernel2S<dir>(a[2], a[6]);
-		fftKernel2S<dir>(a[3], a[7]);
-		a[5] = w1 * a[5];
-		a[6] = conjTransp(a[6]) * dir;
-		a[7] = w3 * a[7];
-		fftKernel2S<dir>(a[0], a[2]);
-		fftKernel2S<dir>(a[1], a[3]);
-		fftKernel2S<dir>(a[4], a[6]);
-		fftKernel2S<dir>(a[5], a[7]);
-		a[3] = conjTransp(a[3]) * dir;
-		a[7] = conjTransp(a[7]) * dir;
-		fftKernel2S<dir>(a[0], a[1]);
-		fftKernel2S<dir>(a[2], a[3]);
-		fftKernel2S<dir>(a[4], a[5]);
-		fftKernel2S<dir>(a[6], a[7]);
-		bitreverse8(a);
-	}
-
-	__device__ void bitreverse4x4(${complex} *a)
-	{
-		swap(a[1], a[4]);
-		swap(a[2], a[8]);
-		swap(a[3], a[12]);
-		swap(a[6], a[9]);
-		swap(a[7], a[13]);
-		swap(a[11], a[14]);
-	}
-
-	template<int dir>
-	__device__ void fftKernel16(${complex} *a)
-	{
-		const ${scalar} w0 = (${scalar})${math.cos(math.pi / 8)};
-		const ${scalar} w1 = (${scalar})${math.sin(math.pi / 8)};
-		const ${scalar} w2 = (${scalar})${math.sin(math.pi / 4)};
-		fftKernel4s<dir>(a[0], a[4], a[8],  a[12]);
-		fftKernel4s<dir>(a[1], a[5], a[9],  a[13]);
-		fftKernel4s<dir>(a[2], a[6], a[10], a[14]);
-		fftKernel4s<dir>(a[3], a[7], a[11], a[15]);
-		a[5]  = a[5] * complex_ctr(w0, dir * w1);
-		a[6]  = a[6] * complex_ctr(w2, dir * w2);
-		a[7]  = a[7] * complex_ctr(w1, dir * w0);
-		a[9]  = a[9] * complex_ctr(w2, dir * w2);
-		a[10] = complex_ctr(dir, 0) * (conjTransp(a[10]));
-		a[11] = a[11] * complex_ctr(-w2, dir * w2);
-		a[13] = a[13] * complex_ctr(w1, dir * w0);
-		a[14] = a[14] * complex_ctr(-w2, dir * w2);
-		a[15] = a[15] * complex_ctr(-w0, -dir * w1);
-		fftKernel4<dir>(a);
-		fftKernel4<dir>(a + 4);
-		fftKernel4<dir>(a + 8);
-		fftKernel4<dir>(a + 12);
-		bitreverse4x4(a);
-	}
-
-	__device__ void bitreverse32(${complex} *a)
-	{
-		shift32(a[1], a[2], a[4], a[8], a[16]);
-		shift32(a[3], a[6], a[12], a[24], a[17]);
-		shift32(a[5], a[10], a[20], a[9], a[18]);
-		shift32(a[7], a[14], a[28], a[25], a[19]);
-		shift32(a[11], a[22], a[13], a[26], a[21]);
-		shift32(a[15], a[30], a[29], a[27], a[23]);
-	}
-
-	template<int dir>
-	__device__ void fftKernel32(${complex} *a)
-	{
-		%for i in range(16):
-			fftKernel2S<dir>(a[${i}], a[${i + 16}]);
-		%endfor
-
-		%for i in range(1, 16):
-			a[${i + 16}] = a[${i + 16}] * complex_ctr(
-				(${scalar})${math.cos(i * math.pi / 16)},
-				(${scalar})${math.sin(i * math.pi / 16)}
-			);
-		%endfor
-
-		fftKernel16<dir>(a);
-		fftKernel16<dir>(a + 16);
-		bitreverse32(a);
-	}
+			fftKernel16${postfix[dir]}(a);
+			fftKernel16${postfix[dir]}(a + 16);
+			bitreverse32(a);
+		}
+	%endfor
 </%def>
 
 <%def name="insertGlobalBuffersShift(split)">
@@ -212,12 +245,14 @@
 	%endif
 </%def>
 
-<%def name="insertGlobalStore(a_index, g_index, split, normalization_coeff)">
+<%def name="insertGlobalStore(a_index, g_index, split, normalization_coeff, dir)">
+	<% coeff = normalization_coeff if dir == 1 else 1 %>
+
 	%if split:
-		out_real[${g_index}] = a[${a_index}].x / (dir == 1 ? ${normalization_coeff} : 1);
-		out_imag[${g_index}] = a[${a_index}].y / (dir == 1 ? ${normalization_coeff} : 1);
+		out_real[${g_index}] = a[${a_index}].x / ${coeff};
+		out_imag[${g_index}] = a[${a_index}].y / ${coeff};
 	%else:
-		out[${g_index}] = a[${a_index}] / (dir == 1 ? ${normalization_coeff} : 1);
+		out[${g_index}] = a[${a_index}] / ${coeff};
 	%endif
 </%def>
 
@@ -314,12 +349,12 @@
 						a[${i * num_inner_iter + j}].${comp};
 				%endfor
 			%endfor
-			__syncthreads();
+			SYNC;
 
 			%for i in range(radix):
 				a[${i}].${comp} = smem[smem_load_index + ${i * threads_per_xform}];
 			%endfor
-			__syncthreads();
+			SYNC;
 		%endfor
 	%else:
 		{
@@ -362,18 +397,18 @@
 			%for i in range(radix):
 				smem[smem_store_index + ${i * (block_size / n) * (n + threads_per_xform)}] = a[${i}].${comp};
 			%endfor
-			__syncthreads();
+			SYNC;
 
 			%for i in range(radix):
 				a[${i}].${comp} = smem[smem_load_index + ${i * threads_per_xform}];
 			%endfor
-			__syncthreads();
+			SYNC;
 		%endfor
 	%endif
 </%def>
 
 <%def name="insertGlobalStoresAndTranspose(n, max_radix, radix, threads_per_xform, xforms_per_block, \
-	   mem_coalesce_width, split, normalization_coeff)">
+	   mem_coalesce_width, split, normalization_coeff, dir)">
 
 	<%
 		block_size = threads_per_xform * xforms_per_block
@@ -392,7 +427,7 @@
 				k = i / num_iter
 				ind = j * radix + k
 			%>
-			${insertGlobalStore(ind, i * threads_per_xform, split, normalization_coeff)}
+			${insertGlobalStore(ind, i * threads_per_xform, split, normalization_coeff, dir)}
 		%endfor
 
 		%if xforms_per_block > 1:
@@ -418,7 +453,7 @@
 				%>
 				smem[smem_load_index + ${i * threads_per_xform}] = a[${ind}].${comp};
 			%endfor
-			__syncthreads();
+			SYNC;
 
 			%for i in range(num_outer_iter):
 				%for j in range(num_inner_iter):
@@ -426,7 +461,7 @@
 						i * (block_size / mem_coalesce_width) * (n + threads_per_xform)}];
 				%endfor
 			%endfor
-			__syncthreads();
+			SYNC;
 		%endfor
 
 		if((block_id == gridDim.x - 1) && s)
@@ -437,7 +472,7 @@
 			%for j in range(num_inner_iter):
 				${insertGlobalStore(i * num_inner_iter + j, \
 					j * mem_coalesce_width + i * (block_size / mem_coalesce_width) * n, \
-					split, normalization_coeff)}
+					split, normalization_coeff, dir)}
 			%endfor
 			}
 			%if i != num_outer_iter - 1:
@@ -451,7 +486,7 @@
 			%for j in range(num_inner_iter):
 				${insertGlobalStore(i * num_inner_iter + j, \
 					j * mem_coalesce_width + i * (block_size / mem_coalesce_width) * n, \
-					split, normalization_coeff)}
+					split, normalization_coeff, dir)}
 			%endfor
 		%endfor
 		}
@@ -470,12 +505,12 @@
 				%>
 				smem[smem_load_index + ${i * threads_per_xform}] = a[${ind}].${comp};
 			%endfor
-			__syncthreads();
+			SYNC;
 
 			%for i in range(max_radix):
 				a[${i}].${comp} = smem[smem_store_index + ${i * (block_size / n) * (n + threads_per_xform)}];
 			%endfor
-			__syncthreads();
+			SYNC;
 		%endfor
 
 		if((block_id == gridDim.x - 1) && s)
@@ -483,7 +518,7 @@
 		%for i in range(max_radix):
 			if(jj < s)
 			{
-				${insertGlobalStore(i, i * block_size, split, normalization_coeff)}
+				${insertGlobalStore(i, i * block_size, split, normalization_coeff, dir)}
 			}
 			%if i != max_radix - 1:
 				jj += ${block_size / n};
@@ -493,19 +528,19 @@
 		else
 		{
 			%for i in range(max_radix):
-				${insertGlobalStore(i, i * block_size, split, normalization_coeff)}
+				${insertGlobalStore(i, i * block_size, split, normalization_coeff, dir)}
 			%endfor
 		}
 	%endif
 </%def>
 
-<%def name="insertfftKernel(radix, num_iter)">
+<%def name="insertfftKernel(radix, num_iter, dir)">
 	%for i in range(num_iter):
-		fftKernel${radix}<dir>(a + ${i * radix});
+		fftKernel${radix}${postfix[dir]}(a + ${i * radix});
 	%endfor
 </%def>
 
-<%def name="insertTwiddleKernel(radix, num_iter, radix_prev, data_len, threads_per_xform, scalar, complex)">
+<%def name="insertTwiddleKernel(radix, num_iter, radix_prev, data_len, threads_per_xform, scalar, complex, dir)">
 
 	<% log2_radix_prev = log2(radix_prev) %>
 	{ // Twiddle kernel
@@ -530,7 +565,7 @@
 
 		%for k in range(1, radix):
 			<% ind = z * radix + k %>
-			ang = dir * (${scalar})${2 * math.pi * k / data_len} * angf;
+			ang = (${scalar})${2 * dir * math.pi * k / data_len} * angf;
 			complex_exp(w, ang);
 			a[${ind}] = a[${ind}] * w;
 		%endfor
@@ -545,7 +580,7 @@
 			smem[smem_store_index + ${index}] = a[${z * radix + k}].${comp};
 		%endfor
 	%endfor
-	__syncthreads();
+	SYNC;
 </%def>
 
 <%def name="insertLocalLoads(n, radix, radix_next, radix_prev, radix_curr, threads_per_xform, threads_req, offset, comp)">
@@ -577,7 +612,7 @@
 			a[${i * radix_next + z}].${comp} = smem[smem_load_index + ${st}];
 		%endfor
 	%endfor
-	__syncthreads();
+	SYNC;
 </%def>
 
 <%def name="insertLocalLoadIndexArithmetic(radix_prev, radix, threads_req, threads_per_xform, xforms_per_block, offset, mid_pad)">
@@ -629,37 +664,26 @@
 	%endif
 </%def>
 
-<%def name="insertGlobalHeader(name, split, scalar, complex)">
+<%def name="insertGlobalHeader(name, split, scalar, complex, dir)">
 %if split:
-	void ${name}(${scalar} *in_real, ${scalar} *in_imag, ${scalar} *out_real, ${scalar} *out_imag, int S)
+	void ${name}${postfix[dir]}(${scalar} *in_real, ${scalar} *in_imag, ${scalar} *out_real, ${scalar} *out_imag, int S)
 %else:
-	void ${name}(${complex} *in, ${complex} *out, int S)
+	void ${name}${postfix[dir]}(${complex} *in, ${complex} *out, int S)
 %endif
 </%def>
 
-<%def name="insertKernelTemplateHeader(kernel_name, split, scalar, complex)">
-	template<int dir> __device__ ${insertGlobalHeader(kernel_name, split, scalar, complex)}
-</%def>
-
-<%def name="insertKernelSpecializations(kernel_name, split, scalar, complex)">
-extern "C" {
-	%for dir, suffix in ((-1, "_forward"), (1, "_inverse")):
-		__global__ ${insertGlobalHeader(kernel_name + suffix, split, scalar, complex)}
-		{
-		%if split:
-			${kernel_name}<${dir}>(in_real, in_imag, out_real, out_imag, S);
-		%else:
-			${kernel_name}<${dir}>(in, out, S);
-		%endif
-		}
-	%endfor
-}
+<%def name="insertKernelHeader(kernel_name, split, scalar, complex, dir)">
+	GLOBAL ${insertGlobalHeader(kernel_name, split, scalar, complex, dir)}
 </%def>
 
 <%def name="insertVariableDefinitions(scalar, complex, shared_mem, temp_array_size)">
 
 	%if shared_mem > 0:
-		__shared__ ${scalar} smem[${shared_mem}];
+		%if cuda:
+			__shared__ ${scalar} smem[${shared_mem}];
+		%else:
+			LOCAL ${scalar} smem[${shared_mem}];
+		%endif
 		size_t smem_store_index, smem_load_index;
 	%endif
 
@@ -667,8 +691,13 @@ extern "C" {
 	## (it considers a[] not initialized)
 	${complex} a[${temp_array_size}] = {${', '.join(['0'] * temp_array_size * 2)}};
 
-	int thread_id = threadIdx.x;
-	int block_id = blockIdx.x + blockIdx.y * gridDim.x;
+	%if cuda:
+		int thread_id = threadIdx.x;
+		int block_id = blockIdx.x + blockIdx.y * gridDim.x;
+	%else:
+		int thread_id = get_local_id(0);
+		int block_id = get_group_id(0);
+	%endif
 </%def>
 
 <%def name="localKernel(scalar, complex, split, kernel_name, n, radix_arr, shared_mem, \
@@ -676,14 +705,17 @@ extern "C" {
 
 	<%
 		max_radix = radix_arr[0]
-		radix_prev = 1
-		data_len = n
 		num_radix = len(radix_arr)
 	%>
 
 ${insertBaseKernels(scalar, complex)}
 
-${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
+%if cuda:
+	extern "C" {
+%endif
+
+%for dir in dirs:
+${insertKernelHeader(kernel_name, split, scalar, complex, dir)}
 {
 	${insertVariableDefinitions(scalar, complex, shared_mem, max_radix)}
 	int ii;
@@ -698,6 +730,11 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 	${insertGlobalLoadsAndTranspose(n, threads_per_xform, xforms_per_block, max_radix,
 		min_mem_coalesce_width, split)}
 
+	<%
+		radix_prev = 1
+		data_len = n
+	%>
+
 	%for r in range(num_radix):
 		<%
 			num_iter = radix_arr[0] / radix_arr[r]
@@ -705,10 +742,11 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 			radix_curr = radix_prev * radix_arr[r]
 		%>
 
-		${insertfftKernel(radix_arr[r], num_iter)}
+		${insertfftKernel(radix_arr[r], num_iter, dir)}
 
 		%if r < num_radix - 1:
-			${insertTwiddleKernel(radix_arr[r], num_iter, radix_prev, data_len, threads_per_xform, scalar, complex)}
+			${insertTwiddleKernel(radix_arr[r], num_iter, radix_prev, data_len, threads_per_xform,
+				scalar, complex, dir)}
 			<%
 				lMemSize, offset, mid_pad = getPadding(threads_per_xform, radix_prev, threads_req,
 					xforms_per_block, radix_arr[r], num_smem_banks)
@@ -727,10 +765,14 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 	%endfor
 
 	${insertGlobalStoresAndTranspose(n, max_radix, radix_arr[num_radix - 1], threads_per_xform,
-		xforms_per_block, min_mem_coalesce_width, split, normalization_coeff)}
+		xforms_per_block, min_mem_coalesce_width, split, normalization_coeff, dir)}
 }
+%endfor
 
-${insertKernelSpecializations(kernel_name, split, scalar, complex)}
+%if cuda:
+	} // extern "C"
+%endif
+
 </%def>
 
 <%def name="globalKernel(scalar, complex, split, kernel_name, n, curr_n, pass_num, shared_mem, \
@@ -768,7 +810,12 @@ ${insertBaseKernels(scalar, complex)}
 		m = log2(n)
 	%>
 
-${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
+%if cuda:
+	extern "C" {
+%endif
+
+%for dir in dirs:
+${insertKernelHeader(kernel_name, split, scalar, complex, dir)}
 {
 	${insertVariableDefinitions(scalar, complex, shared_mem, radix1)}
 	int index_in, index_out, x_num, tid, i, j;
@@ -835,7 +882,7 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 		%endfor
 	%endif
 
-	fftKernel${radix1}<dir>(a);
+	fftKernel${radix1}${postfix[dir]}(a);
 
 	%if radix2 > 1:
 		## twiddle
@@ -847,7 +894,7 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 			## TODO: for some reason, writing it in form
 			## (${scalar})${2 * math.pi / radix} * (${scalar})${k} gives slightly better precision
 			## have to try it with double precision
-			ang = dir * (${scalar})${2 * math.pi * k / radix} * j;
+			ang = (${scalar})${2 * dir * math.pi * k / radix} * j;
 			complex_exp(w, ang);
 			a[${k}] = a[${k}] * w;
 		%endfor
@@ -862,18 +909,18 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 			%for k in range(radix1):
 				smem[smem_store_index + ${k * block_size}] = a[${k}].${comp};
 			%endfor
-			__syncthreads();
+			SYNC;
 
 			%for k in range(num_iter):
 				%for t in range(radix2):
 					a[${k * radix2 + t}].${comp} = smem[smem_load_index + ${t * batch_size + k * block_size}];
 				%endfor
 			%endfor
-			__syncthreads();
+			SYNC;
 		%endfor
 
 		%for j in range(num_iter):
-			fftKernel${radix2}<dir>(a + ${j * radix2});
+			fftKernel${radix2}${postfix[dir]}(a + ${j * radix2});
 		%endfor
 	%endif
 
@@ -885,7 +932,7 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 
 		int l = ((b_num << ${log2_batch_size}) + i) >> ${log2_stride_out};
 		int k = j << ${log2(radix1 / radix2)};
-		ang1 = dir * (${scalar})${2 * math.pi / curr_n} * l;
+		ang1 = (${scalar})${2 * dir * math.pi / curr_n} * l;
 		%for t in range(radix1):
 			ang = ang1 * (k + ${(t % radix2) * radix1 + (t / radix2)});
 			complex_exp(w, ang);
@@ -905,12 +952,12 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 					smem[smem_store_index + ${i + j * radix1}] = a[${i * radix2 + j}].${comp};
 				%endfor
 			%endfor
-			__syncthreads();
+			SYNC;
 
 			%for i in range(radix1):
 				a[${i}].${comp} = smem[smem_load_index + ${i * (radix + 1) * (block_size / radix)}];
 			%endfor
-			__syncthreads();
+			SYNC;
 		%endfor
 
 		index_out += tid;
@@ -932,24 +979,30 @@ ${insertKernelTemplateHeader(kernel_name, split, scalar, complex)}
 		%endif
 	%else:
 		index_out += mad24(j, ${num_iter * stride_out}, i);
+
+		<% coeff = normalization_coeff if dir == 1 else 1 %>
+
 		%if split:
 			out_real += index_out;
 			out_imag += index_out;
 			%for comp, part in (('x', 'real'), ('y', 'imag')):
 				%for k in range(radix1):
 					out_${part}[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] =
-						a[${k}].${comp} / (dir == 1 ? ${normalization_coeff} : 1);
+						a[${k}].${comp} / ${coeff};
 				%endfor
 			%endfor
 		%else:
 			out += index_out;
 			%for k in range(radix1):
 				out[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] =
-					a[${k}] / (dir == 1 ? ${normalization_coeff} : 1);
+					a[${k}] / ${coeff};
 			%endfor
 		%endif
 	%endif
 }
+%endfor
 
-${insertKernelSpecializations(kernel_name, split, scalar, complex)}
+%if cuda:
+	} // extern "C"
+%endif
 </%def>

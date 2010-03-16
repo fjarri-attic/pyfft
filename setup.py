@@ -13,15 +13,15 @@ VERSION = '0.2'
 open(os.path.join(os.path.dirname(__file__), 'documentation.rst'), 'w').write(DOCUMENTATION)
 
 setup(
-	name='pycudafft',
-	packages=['pycudafft', 'cufft'],
-	provides=['pycudafft'],
-	requires=['pycuda', 'mako', 'numpy'],
+	name='pyfft',
+	packages=['pyfft'],
+	provides=['pyfft'],
+	requires=['mako', 'numpy'],
 	version=VERSION,
 	author='Bogdan Opanchuk',
-	author_email='bg@bk.ru',
-	url='http://github.com/Manticore/pycudafft',
-	description='FFT library for PyCuda',
+	author_email='mantihor@gmail.com',
+	url='http://github.com/Manticore/pyfft',
+	description='FFT library for PyCuda and PyOpenCL',
 	long_description=DOCUMENTATION,
 	classifiers=[
 		'Development Status :: 4 - Beta',

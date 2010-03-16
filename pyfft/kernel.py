@@ -47,8 +47,8 @@ class _FFTKernel:
 
 			# compile and get function pointers
 			module = SourceModule(kernel_string, no_extern_c=True)
-			func_ref_forward = module.get_function(self._kernel_name + "_forward")
-			func_ref_inverse = module.get_function(self._kernel_name + "_inverse")
+			func_ref_forward = module.get_function(self._kernel_name + "Fwd")
+			func_ref_inverse = module.get_function(self._kernel_name + "Inv")
 
 			# check that number of registers fits GPU
 			if func_ref_forward.num_regs * self._block_size > self._params.max_registers:
@@ -157,7 +157,7 @@ class LocalFFTKernel(_FFTKernel):
 			n, radix_array, smem_size, threads_per_xform, xforms_per_block,
 			self._params.min_mem_coalesce_width, self._params.num_smem_banks,
 			self._params.size if normalize else 1,
-			log2=log2, getPadding=getPadding)
+			log2=log2, getPadding=getPadding, cuda=True)
 
 
 class GlobalFFTKernel(_FFTKernel):
@@ -240,7 +240,7 @@ class GlobalFFTKernel(_FFTKernel):
 			smem_size, batch_size,
 			self._horiz_bs, self._vert_bs, vertical, max_block_size,
 			self._params.size if normalize else 1,
-			log2=log2, getGlobalRadixInfo=getGlobalRadixInfo)
+			log2=log2, getGlobalRadixInfo=getGlobalRadixInfo, cuda=True)
 
 	def __get_batch_size(self):
 		return self._batch_size

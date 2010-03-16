@@ -3,7 +3,7 @@ import pycuda.driver as cuda
 import pycuda.gpuarray as gpuarray
 import numpy
 
-from pycudafft import FFTPlan
+from pyfft import FFTPlan
 from cufft import CUFFTPlan
 
 import time
