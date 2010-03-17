@@ -1,8 +1,3 @@
-from pycuda.driver import device_attribute
-from pycuda.gpuarray import GPUArray
-import pycuda.driver as cuda
-from pycuda.tools import DeviceData
-
 import numpy
 
 from .kernel import *
@@ -18,31 +13,36 @@ class _FFTParams:
 	Contains different device and FFT plan parameters.
 	"""
 
-	def __init__(self, shape, dtype, device):
+	def __init__(self, shape, dtype, context):
 
 		self.x, self.y, self.z = shape
 		self.size = self.x * self.y * self.z
+		self.context = context
 
 		if 2 ** log2(self.size) != self.size:
 			raise ValueError("Array dimensions must be powers of two")
 
-		if dtype == numpy.complex64 or dtype == numpy.float32:
+		if dtype in [numpy.complex64, numpy.float32]:
 			self.split = True if dtype == numpy.float32 else False
 			self.scalar = 'float'
 			self.complex = 'float2'
 			self.scalar_nbytes = 4
 			self.complex_nbytes = 8
+		elif dtype in [numpy.complex128, numpy.float64]:
+			self.split = True if dtype == numpy.float64 else False
+			self.scalar = 'double'
+			self.complex = 'double2'
+			self.scalar_nbytes = 8
+			self.complex_nbytes = 16
 		else:
-			raise ValueError("Data type is not supported: " + str(dtype))
+			raise ValueError("Data type " + str(dtype) + " is not supported")
 
 		global_memory_word = self.scalar_nbytes if self.split else self.complex_nbytes
 
-		devdata = DeviceData(device)
-		self.min_mem_coalesce_width = devdata.align_bytes(word_size=global_memory_word) / global_memory_word
-		self.num_smem_banks = devdata.smem_granularity
-		self.max_registers = device.get_attribute(device_attribute.MAX_REGISTERS_PER_BLOCK)
-		self.max_grid_x = 2 ** log2(device.get_attribute(device_attribute.MAX_GRID_DIM_X))
-		self.max_block_size = device.get_attribute(device_attribute.MAX_BLOCK_DIM_X)
+		self.min_mem_coalesce_width = context.min_mem_coalesce_width[global_memory_word]
+		self.num_smem_banks = context.num_smem_banks
+		self.max_grid_x = context.max_grid_x
+		self.max_block_size = context.max_block_size
 
 		self.max_smem_fft_size = 2048
 		self.max_radix = 16
@@ -52,7 +52,7 @@ class FFTPlan:
 	"""
 	Class for FFT plan preparation and execution.
 	"""
-	def __init__(self, shape, dtype=numpy.complex64, mempool=None, device=None, normalize=True):
+	def __init__(self, context, shape, dtype=numpy.complex64, normalize=True):
 
 		if isinstance(shape, int):
 			self._dim = _FFT_1D
@@ -71,16 +71,9 @@ class FFTPlan:
 		else:
 			raise ValueError("Wrong shape")
 
-		if device is None:
-			from pycuda.autoinit import device
-
-		self._params = _FFTParams(shape, dtype, device)
+		self._context = context
+		self._params = _FFTParams(shape, dtype, context)
 		self._normalize = normalize
-
-		if mempool is None:
-			self._allocate = cuda.mem_alloc
-		else:
-			self._allocate = mempool.allocate
 
 		self._tempmemobj = None
 		self._tempmemobj_re = None
@@ -90,6 +83,9 @@ class FFTPlan:
 		self._last_batch_size = 0
 
 		self._generateKernelCode()
+
+	def getQueue(self):
+		return self._context.getQueue()
 
 	def _generateKernelCode(self):
 		"""Create and compile FFT kernels"""
@@ -170,10 +166,10 @@ class FFTPlan:
 			buffer_size = self._params.size * batch * self._params.scalar_nbytes
 
 			if split:
-				self._tempmemobj_re = self._allocate(buffer_size)
-				self._tempmemobj_im = self._allocate(buffer_size)
+				self._tempmemobj_re = self._context.allocate(buffer_size)
+				self._tempmemobj_im = self._context.allocate(buffer_size)
 			else:
-				self._tempmemobj = self._allocate(buffer_size * 2)
+				self._tempmemobj = self._context.allocate(buffer_size * 2)
 
 		if split:
 			mem_objs_re = (args[0], args[2], self._tempmemobj_re)
@@ -205,10 +201,10 @@ class FFTPlan:
 					kernel.prepare(batch)
 
 				if split:
-					kernel.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
-						mem_objs_re[curr_write], mem_objs_im[curr_write], inverse)
+					self._context.enqueue(kernel, inverse, mem_objs_re[curr_read], mem_objs_im[curr_read],
+						mem_objs_re[curr_write], mem_objs_im[curr_write])
 				else:
-					kernel.preparedCall(mem_objs[curr_read], mem_objs[curr_write], inverse)
+					self._context.enqueue(kernel, inverse, mem_objs[curr_read], mem_objs[curr_write])
 
 				curr_read  = 1 if (curr_write == 1) else 2
 				curr_write = 2 if (curr_write == 1) else 1
@@ -221,13 +217,15 @@ class FFTPlan:
 					kernel.prepare(batch)
 
 				if split:
-					kernel.preparedCallSplit(mem_objs_re[curr_read], mem_objs_im[curr_read],
-						mem_objs_re[curr_write], mem_objs_im[curr_write], inverse)
+					self._context.enqueue(kernel, inverse, mem_objs_re[curr_read], mem_objs_im[curr_read],
+						mem_objs_re[curr_write], mem_objs_im[curr_write])
 				else:
-					kernel.preparedCall(mem_objs[curr_read], mem_objs[curr_write], inverse)
+					self._context.enqueue(kernel, inverse, mem_objs[curr_read], mem_objs[curr_write])
 
 				curr_read  = 1
 				curr_write = 1
+
+		self._context.wait()
 
 	def execute(self, data_in, data_out=None, inverse=False, batch=1):
 		"""Execute plan for interleaved complex array"""
@@ -237,12 +235,6 @@ class FFTPlan:
 			is_inplace = True
 		else:
 			is_inplace = False
-
-		if isinstance(data_in, GPUArray):
-			data_in = data_in.gpudata
-
-		if isinstance(data_out, GPUArray):
-			data_out = data_out.gpudata
 
 		self._execute(False, is_inplace, inverse, batch, data_in, data_out)
 
@@ -255,17 +247,5 @@ class FFTPlan:
 			is_inplace = True
 		else:
 			is_inplace = False
-
-		if isinstance(data_in_re, GPUArray):
-			data_in_re = data_in_re.gpudata
-
-		if isinstance(data_in_im, GPUArray):
-			data_in_im = data_in_im.gpudata
-
-		if isinstance(data_out_re, GPUArray):
-			data_out_re = data_out_re.gpudata
-
-		if isinstance(data_out_im, GPUArray):
-			data_out_im = data_out_im.gpudata
 
 		self._execute(True, is_inplace, inverse, batch, data_in_re, data_in_im, data_out_re, data_out_im)

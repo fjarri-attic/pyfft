@@ -1,7 +1,6 @@
 import os.path
 
 from mako.template import Template
-from pycuda.compiler import SourceModule
 
 from .kernel_helpers import *
 
@@ -17,6 +16,7 @@ class _FFTKernel:
 
 	def __init__(self, fft_params):
 		self._params = fft_params
+		self._context = fft_params.context
 		self._kernel_name = "fft"
 		self._previous_batch = None
 
@@ -46,17 +46,18 @@ class _FFTKernel:
 				continue
 
 			# compile and get function pointers
-			module = SourceModule(kernel_string, no_extern_c=True)
-			func_ref_forward = module.get_function(self._kernel_name + "Fwd")
-			func_ref_inverse = module.get_function(self._kernel_name + "Inv")
+			module = self._context.compile(kernel_string)
+			func_forward = module.getFunction(self._kernel_name + "Fwd", self._params.split, self._block_size)
+			func_inverse = module.getFunction(self._kernel_name + "Inv", self._params.split, self._block_size)
 
-			# check that number of registers fits GPU
-			if func_ref_forward.num_regs * self._block_size > self._params.max_registers:
+			# check that kernel is executable (testing only one, because the other
+			# is exactly the same)
+			if not func_forward.isExecutable():
 				continue
 
 			self._module = module
-			self._func_ref_forward = func_ref_forward
-			self._func_ref_inverse = func_ref_inverse
+			self._func_forward = func_forward
+			self._func_inverse = func_inverse
 			self._max_block_size = max_block_size
 			break
 
@@ -68,33 +69,14 @@ class _FFTKernel:
 
 		if self._previous_batch != batch:
 			self._previous_batch = batch
-			self._batch, self._grid = self._getKernelWorkDimensions(batch)
+			batch, grid = self._getKernelWorkDimensions(batch)
 
-			if self._params.split:
-				self._func_ref_forward.prepare("PPPPi", block=(self._block_size, 1, 1))
-				self._func_ref_inverse.prepare("PPPPi", block=(self._block_size, 1, 1))
-			else:
-				self._func_ref_forward.prepare("PPi", block=(self._block_size, 1, 1))
-				self._func_ref_inverse.prepare("PPi", block=(self._block_size, 1, 1))
+			self._func_forward.prepare(grid, batch)
+			self._func_inverse.prepare(grid, batch)
 
-	def preparedCall(self, data_in, data_out, inverse):
-		"""Call prepared interleaved complex kernel"""
-		if inverse:
-			func_ref = self._func_ref_inverse
-		else:
-			func_ref = self._func_ref_forward
-
-		func_ref.prepared_call(self._grid, data_in, data_out, self._batch)
-
-	def preparedCallSplit(self, data_in_re, data_in_im, data_out_re, data_out_im, inverse):
-		"""Call prepared split complex kernel"""
-		if inverse:
-			func_ref = self._func_ref_inverse
-		else:
-			func_ref = self._func_ref_forward
-
-		func_ref.prepared_call(self._grid, data_in_re, data_in_im, data_out_re,
-			data_out_im, self._batch)
+	def __call__(self, queue, event, inverse, *args):
+		func = self._func_inverse if inverse else self._func_forward
+		return func(queue, event, *args)
 
 	def _getKernelWorkDimensions(self, batch):
 		blocks_num = self._blocks_num
@@ -157,7 +139,7 @@ class LocalFFTKernel(_FFTKernel):
 			n, radix_array, smem_size, threads_per_xform, xforms_per_block,
 			self._params.min_mem_coalesce_width, self._params.num_smem_banks,
 			self._params.size if normalize else 1,
-			log2=log2, getPadding=getPadding, cuda=True)
+			log2=log2, getPadding=getPadding, cuda=self._context.isCuda())
 
 
 class GlobalFFTKernel(_FFTKernel):
@@ -240,7 +222,7 @@ class GlobalFFTKernel(_FFTKernel):
 			smem_size, batch_size,
 			self._horiz_bs, self._vert_bs, vertical, max_block_size,
 			self._params.size if normalize else 1,
-			log2=log2, getGlobalRadixInfo=getGlobalRadixInfo, cuda=True)
+			log2=log2, getGlobalRadixInfo=getGlobalRadixInfo, cuda=self._context.isCuda())
 
 	def __get_batch_size(self):
 		return self._batch_size
