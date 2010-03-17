@@ -5,12 +5,9 @@ except ImportError:
 
 import os.path
 
-from test.doc import DOCUMENTATION
+from test.test_doc import DOCUMENTATION
 
 VERSION = '0.2'
-
-# generate .rst file with documentation
-open(os.path.join(os.path.dirname(__file__), 'documentation.rst'), 'w').write(DOCUMENTATION)
 
 setup(
 	name='pyfft',
