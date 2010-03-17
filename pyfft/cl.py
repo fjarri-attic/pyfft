@@ -25,7 +25,6 @@ class Function:
 		self._batch_size = numpy.int32(batch_size) # CL kernel wrapper requires sized integer
 
 	def __call__(self, queue, previous_event, *args):
-		print "Starting kernel: " + repr((self._global_size, self._block_size, self._batch_size))
 		wait_for = None if previous_event is None else [previous_event]
 
 		kernel = self._kernel
