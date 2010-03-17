@@ -33,30 +33,28 @@
 	%if cuda:
 		inline ${complex} operator+(${complex} a, ${complex} b) { return complex_ctr(a.x + b.x, a.y + b.y); }
 		inline ${complex} operator-(${complex} a, ${complex} b) { return complex_ctr(a.x - b.x, a.y - b.y); }
-		inline ${complex} operator*(${complex} a, ${scalar}  b) { return complex_ctr(b * a.x, b * a.y); }
-		inline ${complex} operator/(${complex} a, int b) { return complex_ctr(a.x / b, a.y / b); }
 		inline ${complex} operator*(${complex} a, ${complex} b)
 		{
 			return complex_ctr(mad(-a.y, b.y, a.x * b.x), mad(a.y, b.x, a.x * b.y));
 		}
 	%endif
 
+	#define complex_div_scalar(a, b) complex_ctr((a).x / (b), (a).y / (b))
+	#define complex_mul_scalar(a, b) complex_ctr((a).x * (b), (a).y * (b))
 	#define conj(a) complex_ctr((a).x, -(a).y)
 	#define conjTransp(a) complex_ctr(-(a).y, (a).x)
 
 	%if cuda:
 		#define DEVICE __device__
 		#define GLOBAL __global__
-		#define LOCAL
 		#define SYNC __syncthreads()
 	%else:
 		#define DEVICE
-		#define GLOBAL
-		#define LOCAL __local
+		#define GLOBAL __kernel
 		#define SYNC barrier(CLK_LOCAL_MEM_FENCE)
 	%endif
 
-	DEVICE void swap(LOCAL ${complex} *a, LOCAL ${complex} *b)
+	DEVICE void swap(${complex} *a, ${complex} *b)
 	{
 		${complex} c = *a;
 		*a = *b;
@@ -65,8 +63,7 @@
 
 	// shifts the sequence (a1, a2, a3, a4, a5) transforming it to
 	// (a5, a1, a2, a3, a4)
-	DEVICE void shift32(LOCAL ${complex} *a1, LOCAL ${complex} *a2, LOCAL ${complex} *a3,
-		LOCAL ${complex} *a4, LOCAL ${complex} *a5)
+	DEVICE void shift32(${complex} *a1, ${complex} *a2, ${complex} *a3, ${complex} *a4, ${complex} *a5)
 	{
 		${complex} c1, c2;
 		c1 = *a2;
@@ -81,7 +78,7 @@
 	}
 
 	%for dir in dirs:
-		DEVICE void fftKernel2${postfix[dir]}(LOCAL ${complex} *a)
+		DEVICE void fftKernel2${postfix[dir]}(${complex} *a)
 		{
 			${complex} c = a[0];
 			a[0] = c + a[1];
@@ -90,7 +87,7 @@
 	%endfor
 
 	%for dir in dirs:
-		DEVICE void fftKernel2S${postfix[dir]}(LOCAL ${complex} *d1, LOCAL ${complex} *d2)
+		DEVICE void fftKernel2S${postfix[dir]}(${complex} *d1, ${complex} *d2)
 		{
 			${complex} c = *d1;
 			*d1 = c + *d2;
@@ -99,38 +96,38 @@
 	%endfor
 
 	%for dir in dirs:
-		DEVICE void fftKernel4${postfix[dir]}(LOCAL ${complex} *a)
+		DEVICE void fftKernel4${postfix[dir]}(${complex} *a)
 		{
 			fftKernel2S${postfix[dir]}(a + 0, a + 2);
 			fftKernel2S${postfix[dir]}(a + 1, a + 3);
 			fftKernel2S${postfix[dir]}(a + 0, a + 1);
-			a[3] = conjTransp(a[3]) * ${dir};
+			a[3] = complex_mul_scalar(conjTransp(a[3]), ${dir});
 			fftKernel2S${postfix[dir]}(a + 2, a + 3);
 			swap(a + 1, a + 2);
 		}
 	%endfor
 
 	%for dir in dirs:
-		DEVICE void fftKernel4s${postfix[dir]}(LOCAL ${complex} *a0, LOCAL ${complex} *a1,
-			LOCAL ${complex} *a2, LOCAL ${complex} *a3)
+		DEVICE void fftKernel4s${postfix[dir]}(${complex} *a0, ${complex} *a1,
+			${complex} *a2, ${complex} *a3)
 		{
 			fftKernel2S${postfix[dir]}(a0, a2);
 			fftKernel2S${postfix[dir]}(a1, a3);
 			fftKernel2S${postfix[dir]}(a0, a1);
-			*a3 = conjTransp(*a3) * ${dir};
+			*a3 = complex_mul_scalar(conjTransp(*a3), ${dir});
 			fftKernel2S${postfix[dir]}(a2, a3);
 			swap(a1, a2);
 		}
 	%endfor
 
-	DEVICE void bitreverse8(LOCAL ${complex} *a)
+	DEVICE void bitreverse8(${complex} *a)
 	{
 		swap(a + 1, a + 4);
 		swap(a + 3, a + 6);
 	}
 
 	%for dir in dirs:
-		DEVICE void fftKernel8${postfix[dir]}(LOCAL ${complex} *a)
+		DEVICE void fftKernel8${postfix[dir]}(${complex} *a)
 		{
 			const ${complex} w1  = complex_ctr((${scalar})${math.sin(math.pi / 4)}, (${scalar})${math.sin(math.pi / 4) * dir});
 			const ${complex} w3  = complex_ctr((${scalar})-${math.sin(math.pi / 4)}, (${scalar})${math.sin(math.pi / 4) * dir});
@@ -139,14 +136,14 @@
 			fftKernel2S${postfix[dir]}(a + 2, a + 6);
 			fftKernel2S${postfix[dir]}(a + 3, a + 7);
 			a[5] = w1 * a[5];
-			a[6] = conjTransp(a[6]) * ${dir};
+			a[6] = complex_mul_scalar(conjTransp(a[6]), ${dir});
 			a[7] = w3 * a[7];
 			fftKernel2S${postfix[dir]}(a + 0, a + 2);
 			fftKernel2S${postfix[dir]}(a + 1, a + 3);
 			fftKernel2S${postfix[dir]}(a + 4, a + 6);
 			fftKernel2S${postfix[dir]}(a + 5, a + 7);
-			a[3] = conjTransp(a[3]) * ${dir};
-			a[7] = conjTransp(a[7]) * ${dir};
+			a[3] = complex_mul_scalar(conjTransp(a[3]), ${dir});
+			a[7] = complex_mul_scalar(conjTransp(a[7]), ${dir});
 			fftKernel2S${postfix[dir]}(a + 0, a + 1);
 			fftKernel2S${postfix[dir]}(a + 2, a + 3);
 			fftKernel2S${postfix[dir]}(a + 4, a + 5);
@@ -155,7 +152,7 @@
 		}
 	%endfor
 
-	DEVICE void bitreverse4x4(LOCAL ${complex} *a)
+	DEVICE void bitreverse4x4(${complex} *a)
 	{
 		swap(a + 1, a + 4);
 		swap(a + 2, a + 8);
@@ -166,7 +163,7 @@
 	}
 
 	%for dir in dirs:
-		DEVICE void fftKernel16${postfix[dir]}(LOCAL ${complex} *a)
+		DEVICE void fftKernel16${postfix[dir]}(${complex} *a)
 		{
 			const ${scalar} w0 = (${scalar})${math.cos(math.pi / 8)};
 			const ${scalar} w1 = (${scalar})${math.sin(math.pi / 8)};
@@ -192,7 +189,7 @@
 		}
 	%endfor
 
-	DEVICE void bitreverse32(LOCAL ${complex} *a)
+	DEVICE void bitreverse32(${complex} *a)
 	{
 		shift32(a + 1, a + 2, a + 4, a + 8, a + 16);
 		shift32(a + 3, a + 6, a + 12, a + 24, a + 17);
@@ -203,7 +200,7 @@
 	}
 
 	%for dir in dirs:
-		DEVICE void fftKernel32${postfix[dir]}(LOCAL ${complex} *a)
+		DEVICE void fftKernel32${postfix[dir]}(${complex} *a)
 		{
 			%for i in range(16):
 				fftKernel2S${postfix[dir]}(a + ${i}, a + ${i + 16});
@@ -252,7 +249,7 @@
 		out_real[${g_index}] = a[${a_index}].x / ${coeff};
 		out_imag[${g_index}] = a[${a_index}].y / ${coeff};
 	%else:
-		out[${g_index}] = a[${a_index}] / ${coeff};
+		out[${g_index}] = complex_div_scalar(a[${a_index}], ${coeff});
 	%endif
 </%def>
 
@@ -272,7 +269,7 @@
 			ii = thread_id & ${threads_per_xform - 1};
 			jj = thread_id >> ${log2_threads_per_xform};
 
-			if(!s || (block_id < gridDim.x - 1) || (jj < s))
+			if(!s || (block_id < blocks_num - 1) || (jj < s))
 			{
 				{
 					int offset = mad24(mad24(block_id, ${xforms_per_block}, jj), ${n}, ii);
@@ -312,7 +309,7 @@
 			${insertGlobalBuffersShift(split)}
 		}
 
-		if((block_id == gridDim.x - 1) && s)
+		if((block_id == blocks_num - 1) && s)
 		{
 		%for i in range(num_outer_iter):
 			if(jj < s)
@@ -366,7 +363,7 @@
 		jj = thread_id >> ${log2(n)};
 		smem_store_index = mad24(jj, ${n + threads_per_xform}, ii);
 
-		if((block_id == gridDim.x - 1) && s)
+		if((block_id == blocks_num - 1) && s)
 		{
 		%for i in range(radix):
 			if(jj < s)
@@ -417,7 +414,7 @@
 
 	%if threads_per_xform >= mem_coalesce_width:
 		%if xforms_per_block > 1:
-			if(!s || (block_id < gridDim.x - 1) || (jj < s))
+			if(!s || (block_id < blocks_num - 1) || (jj < s))
 			{
 		%endif
 
@@ -464,7 +461,7 @@
 			SYNC;
 		%endfor
 
-		if((block_id == gridDim.x - 1) && s)
+		if((block_id == blocks_num - 1) && s)
 		{
 		%for i in range(num_outer_iter):
 			if(jj < s)
@@ -513,7 +510,7 @@
 			SYNC;
 		%endfor
 
-		if((block_id == gridDim.x - 1) && s)
+		if((block_id == blocks_num - 1) && s)
 		{
 		%for i in range(max_radix):
 			if(jj < s)
@@ -682,7 +679,7 @@
 		%if cuda:
 			__shared__ ${scalar} smem[${shared_mem}];
 		%else:
-			LOCAL ${scalar} smem[${shared_mem}];
+			__local ${scalar} smem[${shared_mem}];
 		%endif
 		size_t smem_store_index, smem_load_index;
 	%endif
@@ -694,9 +691,11 @@
 	%if cuda:
 		int thread_id = threadIdx.x;
 		int block_id = blockIdx.x + blockIdx.y * gridDim.x;
+		int blocks_num = gridDim.x * gridDim.y;
 	%else:
 		int thread_id = get_local_id(0);
 		int block_id = get_group_id(0);
+		int blocks_num = get_num_groups(0);
 	%endif
 </%def>
 
@@ -995,7 +994,7 @@ ${insertKernelHeader(kernel_name, split, scalar, complex, dir)}
 			out += index_out;
 			%for k in range(radix1):
 				out[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] =
-					a[${k}] / ${coeff};
+					complex_div_scalar(a[${k}], ${coeff});
 			%endfor
 		%endif
 	%endif
