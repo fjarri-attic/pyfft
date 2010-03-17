@@ -695,11 +695,9 @@
 	%if cuda:
 		int thread_id = threadIdx.x;
 		int block_id = blockIdx.x + blockIdx.y * gridDim.x;
-		int blocks_num = gridDim.x * gridDim.y;
 	%else:
 		int thread_id = get_local_id(0);
 		int block_id = get_group_id(0);
-		int blocks_num = get_num_groups(0);
 	%endif
 </%def>
 
@@ -728,6 +726,11 @@ ${insertKernelHeader(kernel_name, split, scalar, complex, dir)}
 
 	%if not (threads_per_xform >= min_mem_coalesce_width and xforms_per_block == 1):
 		int jj, s;
+		%if cuda:
+			int blocks_num = gridDim.x * gridDim.y;
+		%else:
+			int blocks_num = get_num_groups(0);
+		%endif
 	%endif
 
 	${insertGlobalLoadsAndTranspose(n, threads_per_xform, xforms_per_block, max_radix,
