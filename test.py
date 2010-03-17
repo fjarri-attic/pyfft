@@ -3,8 +3,7 @@ import pycuda.driver as cuda
 import pycuda.gpuarray as gpuarray
 import numpy
 
-from pyfft import FFTPlan
-from cufft import CUFFTPlan
+from pyfft.cuda import plan as FFTPlan
 
 import time
 import math
@@ -66,8 +65,8 @@ def getDim(x, y, z):
 def getTestArray(shape, dtype, batch):
 	arrays = []
 	for i in xrange(batch):
-		# arrays.append(numpy.ones(shape, dtype=dtype))
-		arrays.append(numpy.random.randn(*shape).astype(dtype))
+		arrays.append(numpy.ones(shape, dtype=dtype))
+		#arrays.append(numpy.random.randn(*shape).astype(dtype))
 
 	return numpy.concatenate(arrays)
 
@@ -104,7 +103,6 @@ def testPerformance(shape):
 	b_gpu = gpuarray.GPUArray(data.shape, dtype=data.dtype)
 
 	plan = FFTPlan(shape)
-	cufft_plan = CUFFTPlan(shape, batch=batch)
 
 	gflop = 5.0e-9 * (log2(x) + log2(y) + log2(z)) * x * y * z * batch
 
@@ -117,19 +115,23 @@ def testPerformance(shape):
 		plan.execute(a_gpu, b_gpu, batch=batch)
 	stop.record()
 	stop.synchronize()
-	t_pycudafft = stop.time_since(start) / 1000.0 / iterations # in seconds
+	t_pyfft = stop.time_since(start) / 1000.0 / iterations # in seconds
 
-	cufft_plan.execute(a_gpu, b_gpu) # warming up
-	start.record()
-	for i in xrange(iterations):
-		cufft_plan.execute(a_gpu, b_gpu)
-	stop.record()
-	stop.synchronize()
-	t_cufft = stop.time_since(start) / 1000.0 / iterations # in seconds
+	print "* pyfft performance: " + str(shape) + ", batch " + str(batch) + ": " + \
+		str(t_pyfft * 1000) + " ms, " + str(gflop / t_pyfft) + " GFLOPS"
 
-	print "* pycudafft performance: " + str(shape) + ", batch " + str(batch) + ": " + \
-		str(t_pycudafft * 1000) + " ms, " + str(gflop / t_pycudafft) + " GFLOPS"
-	print "cufft: " + str(t_cufft * 1000) + " ms, " + str(gflop / t_cufft) + " GFLOPS"
+def numpyFFT(func, data, batch):
+	res = []
+	data_flat = data.ravel()
+	size = data.size / batch
+
+	single_shape = list(data.shape)
+	single_shape[0] /= batch
+	single_shape = tuple(single_shape)
+
+	for i in xrange(batch):
+		res.append(func(data_flat[i*size:(i+1)*size].reshape(single_shape)))
+	return numpy.concatenate(res)
 
 def testErrors(shape, dtype, batch):
 
@@ -156,33 +158,23 @@ def testErrors(shape, dtype, batch):
 	else:
 		data = getTestData(shape, dtype, batch)
 
+	# Reference tests
+	numpy_fw = numpyFFT(numpy.fft.fftn, data, batch)
+	numpy_res = numpyFFT(numpy.fft.ifftn, numpy_fw, batch)
+
+	numpy_err = difference(numpy_res, data, batch)
+
 	# Prepare arrays
-	a_gpu = gpuarray.to_gpu(data)
-	b_gpu = gpuarray.GPUArray(data.shape, dtype=data.dtype)
-
-	# CUFFT tests
-
-	cufft_plan = CUFFTPlan(shape, dtype=complex_dtype, batch=batch)
-
-	cufft_plan.execute(a_gpu, b_gpu)
-	cufft_fw = b_gpu.get()
-
-	cufft_plan.execute(b_gpu, a_gpu, inverse=True)
-	cufft_res = a_gpu.get() / size
-
-	cufft_err = difference(cufft_res, data, batch)
-
-	# relese some GPU memory; this will help low-end videocards
-	del cufft_plan
 	if split:
-		del a_gpu
-		del b_gpu
 		a_gpu_re = gpuarray.to_gpu(data_re)
 		a_gpu_im = gpuarray.to_gpu(data_im)
 		b_gpu_re = gpuarray.GPUArray(data_re.shape, dtype=data_re.dtype)
 		b_gpu_im = gpuarray.GPUArray(data_im.shape, dtype=data_im.dtype)
+	else:
+		a_gpu = gpuarray.to_gpu(data)
+		b_gpu = gpuarray.GPUArray(data.shape, dtype=data.dtype)
 
-	# pycudafft tests
+	# pyfft tests
 
 	plan = FFTPlan(shape, dtype=dtype, normalize=True)
 
@@ -207,7 +199,7 @@ def testErrors(shape, dtype, batch):
 		plan.execute(b_gpu, a_gpu, batch=batch, inverse=True)
 		pyfft_res_outplace = a_gpu.get()
 
-	pycudafft_err_outplace = difference(pyfft_res_outplace, data, batch)
+	pyfft_err_outplace = difference(pyfft_res_outplace, data, batch)
 
 	# inplace forward
 	if split:
@@ -228,22 +220,22 @@ def testErrors(shape, dtype, batch):
 		plan.execute(a_gpu, batch=batch, inverse=True)
 		pyfft_res_inplace = a_gpu.get()
 
-	pycudafft_err_inplace = difference(pyfft_res_inplace, data, batch)
+	pyfft_err_inplace = difference(pyfft_res_inplace, data, batch)
 
 	# check cases where there shouldn't be any errors at all
-	pycudafft_err_inout_fw = difference(pyfft_fw_inplace, pyfft_fw_outplace, batch)
-	pycudafft_err_inout_res = difference(pyfft_res_inplace, pyfft_res_outplace, batch)
-	diff_err = difference(cufft_fw, pyfft_fw_inplace, batch)
+	pyfft_err_inout_fw = difference(pyfft_fw_inplace, pyfft_fw_outplace, batch)
+	pyfft_err_inout_res = difference(pyfft_res_inplace, pyfft_res_outplace, batch)
+	diff_err = difference(numpy_fw, pyfft_fw_inplace, batch)
 
-	# compare CUFFT and pycudafft results
-	assert pycudafft_err_inout_fw < epsilon, "inplace-outplace intermediate error: " + str(pycudafft_err_inout_fw)
-	assert pycudafft_err_inout_res < epsilon, "inplace-outplace final error: " + str(pycudafft_err_inout_res)
+	# compare numpy and pyfft results
+	assert pyfft_err_inout_fw < epsilon, "inplace-outplace intermediate error: " + str(pyfft_err_inout_fw)
+	assert pyfft_err_inout_res < epsilon, "inplace-outplace final error: " + str(pyfft_err_inout_res)
 
-	assert cufft_err < epsilon, "cufft forward-inverse error: " + str(cufft_err)
-	assert pycudafft_err_inplace < epsilon, "pycudafft forward-inverse inplace error: " + str(pycudafft_err_inplace)
-	assert pycudafft_err_outplace < epsilon, "pycudafft forward-inverse outplace error: " + str(pycudafft_err_outplace)
+	assert numpy_err < epsilon, "numpy forward-inverse error: " + str(numpy_err)
+	assert pyfft_err_inplace < epsilon, "pyfft forward-inverse inplace error: " + str(pyfft_err_inplace)
+	assert pyfft_err_outplace < epsilon, "pyfft forward-inverse outplace error: " + str(pyfft_err_outplace)
 
-	assert diff_err < epsilon, "difference between pycudafft and cufft: " + str(diff_err)
+	assert diff_err < epsilon, "difference between pyfft and numpy: " + str(diff_err)
 
 def runErrorTests():
 
