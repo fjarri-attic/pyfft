@@ -5,7 +5,7 @@ except ImportError:
 
 import os.path
 
-from doc import DOCUMENTATION
+from test.doc import DOCUMENTATION
 
 VERSION = '0.2'
 
