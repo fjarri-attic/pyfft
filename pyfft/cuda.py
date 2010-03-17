@@ -2,6 +2,7 @@ from pycuda.driver import device_attribute
 from pycuda.gpuarray import GPUArray
 import pycuda.driver as cuda
 from pycuda.tools import DeviceData
+from pycuda.compiler import SourceModule
 
 from .plan import FFTPlan
 from .kernel_helpers import log2
@@ -22,7 +23,7 @@ class Function:
 		self._grid = grid
 		self._batch_size = batch_size
 
-	def __call__(self, stream, *args):
+	def __call__(self, stream, _, *args):
 		args = list(args)
 		for i, arg in enumerate(args):
 			if isinstance(arg, GPUArray):
@@ -34,7 +35,7 @@ class Function:
 			self._func_ref.prepared_async_call(self._grid, stream, args[0], args[1], self._batch_size)
 
 	def isExecutable(self):
-		return self._func_ref.num_regs() * self._block_size <= self._context.max_registers
+		return self._func_ref.num_regs * self._block_size <= self._context.max_registers
 
 
 class Module:
@@ -72,10 +73,8 @@ class Context:
 			self._mempool = mempool
 			self.allocate = mempool.allocate
 
-		self._stream = stream
-
 	def compile(self, kernel_string):
-		return Module(kernel_string)
+		return Module(self, kernel_string)
 
 	def getQueue(self):
 		return self._stream
@@ -83,8 +82,8 @@ class Context:
 	def wait(self):
 		self._stream.synchronize()
 
-	def add(func, *args):
-		func(self._stream, *args)
+	def enqueue(self, func, *args):
+		func(self._stream, None, *args)
 
 	def isCuda(self):
 		return True
