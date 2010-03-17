@@ -30,6 +30,7 @@
 		#define complex_exp(res, ang) (res).x = native_cos(ang); (res).y = native_sin(ang)
 	%endif
 
+	## These operators are supported by OpenCL
 	%if cuda:
 		inline ${complex} operator+(${complex} a, ${complex} b) { return complex_ctr(a.x + b.x, a.y + b.y); }
 		inline ${complex} operator-(${complex} a, ${complex} b) { return complex_ctr(a.x - b.x, a.y - b.y); }
@@ -40,17 +41,19 @@
 	%endif
 
 	#define complex_div_scalar(a, b) complex_ctr((a).x / (b), (a).y / (b))
-	#define complex_mul_scalar(a, b) complex_ctr((a).x * (b), (a).y * (b))
 	#define conj(a) complex_ctr((a).x, -(a).y)
-	#define conjTransp(a) complex_ctr(-(a).y, (a).x)
+	#define conj_transp(a) complex_ctr(-(a).y, (a).x)
+	#define conj_transp_and_mul(a, b) complex_ctr(-(a).y * b, (a).x * b)
 
 	%if cuda:
 		#define DEVICE __device__
-		#define GLOBAL __global__
+		#define GLOBAL
+		#define KERNEL __global__
 		#define SYNC __syncthreads()
 	%else:
 		#define DEVICE
-		#define GLOBAL __kernel
+		#define GLOBAL __global
+		#define KERNEL __kernel
 		#define SYNC barrier(CLK_LOCAL_MEM_FENCE)
 	%endif
 
@@ -101,7 +104,7 @@
 			fftKernel2S${postfix[dir]}(a + 0, a + 2);
 			fftKernel2S${postfix[dir]}(a + 1, a + 3);
 			fftKernel2S${postfix[dir]}(a + 0, a + 1);
-			a[3] = complex_mul_scalar(conjTransp(a[3]), ${dir});
+			a[3] = conj_transp_and_mul(a[3], ${dir});
 			fftKernel2S${postfix[dir]}(a + 2, a + 3);
 			swap(a + 1, a + 2);
 		}
@@ -114,7 +117,7 @@
 			fftKernel2S${postfix[dir]}(a0, a2);
 			fftKernel2S${postfix[dir]}(a1, a3);
 			fftKernel2S${postfix[dir]}(a0, a1);
-			*a3 = complex_mul_scalar(conjTransp(*a3), ${dir});
+			*a3 = conj_transp_and_mul(*a3, ${dir});
 			fftKernel2S${postfix[dir]}(a2, a3);
 			swap(a1, a2);
 		}
@@ -136,14 +139,14 @@
 			fftKernel2S${postfix[dir]}(a + 2, a + 6);
 			fftKernel2S${postfix[dir]}(a + 3, a + 7);
 			a[5] = w1 * a[5];
-			a[6] = complex_mul_scalar(conjTransp(a[6]), ${dir});
+			a[6] = conj_transp_and_mul(a[6], ${dir});
 			a[7] = w3 * a[7];
 			fftKernel2S${postfix[dir]}(a + 0, a + 2);
 			fftKernel2S${postfix[dir]}(a + 1, a + 3);
 			fftKernel2S${postfix[dir]}(a + 4, a + 6);
 			fftKernel2S${postfix[dir]}(a + 5, a + 7);
-			a[3] = complex_mul_scalar(conjTransp(a[3]), ${dir});
-			a[7] = complex_mul_scalar(conjTransp(a[7]), ${dir});
+			a[3] = conj_transp_and_mul(a[3], ${dir});
+			a[7] = conj_transp_and_mul(a[7], ${dir});
 			fftKernel2S${postfix[dir]}(a + 0, a + 1);
 			fftKernel2S${postfix[dir]}(a + 2, a + 3);
 			fftKernel2S${postfix[dir]}(a + 4, a + 5);
@@ -176,7 +179,7 @@
 			a[6]  = a[6] * complex_ctr(w2, ${dir} * w2);
 			a[7]  = a[7] * complex_ctr(w1, ${dir} * w0);
 			a[9]  = a[9] * complex_ctr(w2, ${dir} * w2);
-			a[10] = complex_ctr(${dir}, 0) * (conjTransp(a[10]));
+			a[10] = complex_ctr(${dir}, 0) * conj_transp(a[10]);
 			a[11] = a[11] * complex_ctr(-w2, ${dir} * w2);
 			a[13] = a[13] * complex_ctr(w1, ${dir} * w0);
 			a[14] = a[14] * complex_ctr(-w2, ${dir} * w2);
@@ -663,14 +666,15 @@
 
 <%def name="insertGlobalHeader(name, split, scalar, complex, dir)">
 %if split:
-	void ${name}${postfix[dir]}(${scalar} *in_real, ${scalar} *in_imag, ${scalar} *out_real, ${scalar} *out_imag, int S)
+	void ${name}${postfix[dir]}(GLOBAL ${scalar} *in_real, GLOBAL ${scalar} *in_imag,
+		GLOBAL ${scalar} *out_real, GLOBAL ${scalar} *out_imag, int S)
 %else:
-	void ${name}${postfix[dir]}(${complex} *in, ${complex} *out, int S)
+	void ${name}${postfix[dir]}(GLOBAL ${complex} *in, GLOBAL ${complex} *out, int S)
 %endif
 </%def>
 
 <%def name="insertKernelHeader(kernel_name, split, scalar, complex, dir)">
-	GLOBAL ${insertGlobalHeader(kernel_name, split, scalar, complex, dir)}
+	KERNEL ${insertGlobalHeader(kernel_name, split, scalar, complex, dir)}
 </%def>
 
 <%def name="insertVariableDefinitions(scalar, complex, shared_mem, temp_array_size)">
