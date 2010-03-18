@@ -89,8 +89,6 @@ def testErrors(ctx, shape, dtype, batch):
 		plan.executeSplit(a_gpu_re, a_gpu_im, batch=batch, inverse=True)
 		pyfft_res_inplace = ctx.fromGpu(a_gpu_re, data_re.shape, data_re.dtype) + \
 			1j * ctx.fromGpu(a_gpu_im, data_im.shape, data_im.dtype)
-		print ctx.fromGpu(a_gpu_re, data_re.shape, data_re.dtype)
-		print ctx.fromGpu(a_gpu_im, data_re.shape, data_re.dtype)
 	else:
 		plan.execute(a_gpu, batch=batch, inverse=True)
 		pyfft_res_inplace = ctx.fromGpu(a_gpu, data.shape, data.dtype)
