@@ -63,9 +63,10 @@ class FFTPlan:
 				shape = (shape[0], 1, 1)
 			elif len(shape) == 2:
 				self._dim = _FFT_2D
-				shape = (shape[0], shape[1], 1)
+				shape = (shape[1], shape[0], 1)
 			elif len(shape) == 3:
 				self._dim = _FFT_3D
+				shape = tuple(reversed(shape))
 			else:
 				raise ValueError("Wrong shape")
 		else:
