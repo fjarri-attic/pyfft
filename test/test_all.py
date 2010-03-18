@@ -31,7 +31,9 @@ modes = ['func', 'err', 'doc', 'perf']
 mode = sys.argv[1]
 args = sys.argv[2:]
 
-if mode not in modes:
+if mode.startswith("-"):
+	args = [mode] + args
+elif mode not in modes:
 	parser.print_help()
 	sys.exit(1)
 
