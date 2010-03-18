@@ -38,7 +38,7 @@ class Function:
 class Module:
 
 	def __init__(self, context, kernel_string):
-		self._program = cl.Program(context.context, kernel_string).build()
+		self._program = cl.Program(context.context, kernel_string).build(options="-cl-mad-enable -cl-fast-relaxed-math")
 		self._context = context
 
 	def getFunction(self, name, split, block_size):
