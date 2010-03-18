@@ -26,17 +26,13 @@ class Function:
 
 	def __call__(self, queue, *args):
 		kernel = self._kernel
-		for i, arg in enumerate(args):
-			kernel.set_arg(i, arg)
-		kernel.set_arg(len(args), self._batch_size)
-		return cl.enqueue_nd_range_kernel(queue, kernel, self._global_size, self._block_size)
 
-		#if self._split:
-		#	return self._kernel(queue, self._global_size, args[0], args[1], args[2], args[3],
-		#		self._batch_size, local_size=self._block_size, wait_for=wait_for)
-		#else:
-		#	return self._kernel(queue, self._global_size, args[0], args[1],
-		#		self._batch_size, local_size=self._block_size, wait_for=wait_for)
+		if self._split:
+			self._kernel(queue, self._global_size, args[0], args[1], args[2], args[3],
+				self._batch_size, local_size=self._block_size)
+		else:
+			self._kernel(queue, self._global_size, args[0], args[1],
+				self._batch_size, local_size=self._block_size)
 
 
 class Module:
