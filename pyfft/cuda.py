@@ -23,7 +23,7 @@ class Function:
 		self._grid = grid
 		self._batch_size = batch_size
 
-	def __call__(self, stream, _, *args):
+	def __call__(self, stream, *args):
 		args = list(args)
 		for i, arg in enumerate(args):
 			if isinstance(arg, GPUArray):
@@ -83,7 +83,7 @@ class Context:
 		self._stream.synchronize()
 
 	def enqueue(self, func, *args):
-		func(self._stream, None, *args)
+		func(self._stream, *args)
 
 	def isCuda(self):
 		return True

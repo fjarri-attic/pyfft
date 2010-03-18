@@ -74,9 +74,9 @@ class _FFTKernel:
 			self._func_forward.prepare(grid, batch)
 			self._func_inverse.prepare(grid, batch)
 
-	def __call__(self, queue, event, inverse, *args):
+	def __call__(self, queue, inverse, *args):
 		func = self._func_inverse if inverse else self._func_forward
-		return func(queue, event, *args)
+		func(queue, *args)
 
 	def _getKernelWorkDimensions(self, batch):
 		blocks_num = self._blocks_num

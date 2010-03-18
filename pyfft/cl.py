@@ -24,14 +24,12 @@ class Function:
 		self._global_size = (grid_width * grid_height * self._block_size[0],)
 		self._batch_size = numpy.int32(batch_size) # CL kernel wrapper requires sized integer
 
-	def __call__(self, queue, previous_event, *args):
-		wait_for = None if previous_event is None else [previous_event]
-
+	def __call__(self, queue, *args):
 		kernel = self._kernel
 		for i, arg in enumerate(args):
 			kernel.set_arg(i, arg)
 		kernel.set_arg(len(args), self._batch_size)
-		return cl.enqueue_nd_range_kernel(queue, kernel, self._global_size, self._block_size, wait_for=wait_for)
+		return cl.enqueue_nd_range_kernel(queue, kernel, self._global_size, self._block_size)
 
 		#if self._split:
 		#	return self._kernel(queue, self._global_size, args[0], args[1], args[2], args[3],
@@ -72,8 +70,6 @@ class Context:
 		workgroup_sizes = self.device.get_info(cl.device_info.MAX_WORK_ITEM_SIZES)
 		self.max_block_size = workgroup_sizes[0]
 
-		self._previous_event = None
-
 	def allocate(self, size):
 		return cl.Buffer(self.context, cl.mem_flags.READ_WRITE, size=size)
 
@@ -84,7 +80,7 @@ class Context:
 		self._queue.finish()
 
 	def enqueue(self, func, *args):
-		self._previous_event = func(self._queue, self._previous_event, *args)
+		func(self._queue, *args)
 
 	def getQueue(self):
 		return self._queue
