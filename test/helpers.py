@@ -72,7 +72,16 @@ class CLContext:
 
 	def __init__(self):
 		import pyopencl as cl
-		self.context = cl.Context(dev_type=cl.device_type.GPU)
+
+		# Choose first GPU device. Not using commented line below,
+		# because we need context with only one device (to avoid
+		# complications)
+		for p in cl.get_platforms():
+			for d in p.get_devices(device_type=cl.device_type.GPU):
+				self.context = cl.Context(devices=[d])
+				return
+
+		#self.context = cl.Context(dev_type=cl.device_type.GPU)
 
 	def createQueue(self):
 		import pyopencl as cl
