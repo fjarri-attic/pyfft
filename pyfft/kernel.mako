@@ -816,6 +816,8 @@ ${insertBaseKernels(scalar, complex)}
 		blocks_per_xform = stride_in / batch_size
 
 		m = log2(n)
+
+		coeff = normalization_coeff if dir == 1 else 1
 	%>
 
 %if cuda:
@@ -976,19 +978,17 @@ ${insertKernelHeader(kernel_name, split, scalar, complex, dir)}
 
 			%for comp, part in (('x', 'real'), ('y', 'imag')):
 				%for k in range(radix1):
-					out_${part}[${k * block_size}] = a[${k}].${comp};
+					out_${part}[${k * block_size}] = a[${k}].${comp} / ${coeff};
 				%endfor
 			%endfor
 		%else:
 			out += index_out;
 			%for k in range(radix1):
-				out[${k * block_size}] = a[${k}];
+				out[${k * block_size}] = complex_div_scalar(a[${k}], ${coeff});
 			%endfor
 		%endif
 	%else:
 		index_out += mad24(j, ${num_iter * stride_out}, i);
-
-		<% coeff = normalization_coeff if dir == 1 else 1 %>
 
 		%if split:
 			out_real += index_out;
