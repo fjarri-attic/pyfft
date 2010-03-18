@@ -52,4 +52,4 @@ def run(test_cuda, test_opencl, buffer_size):
 			testPerformance(ctx, shape, buffer_size)
 
 if __name__ == "__main__":
-	run(isCudaAvailable(), isClAvailable(), DEFAULT_BUFFER_SIZE)
+	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE)
