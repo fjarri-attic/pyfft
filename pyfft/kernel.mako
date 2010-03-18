@@ -816,8 +816,6 @@ ${insertBaseKernels(scalar, complex)}
 		blocks_per_xform = stride_in / batch_size
 
 		m = log2(n)
-
-		coeff = normalization_coeff if dir == 1 else 1
 	%>
 
 %if cuda:
@@ -833,7 +831,10 @@ ${insertKernelHeader(kernel_name, split, scalar, complex, dir)}
 		int b_num;
 	%endif
 
-	<% log2_blocks_per_xform = log2(blocks_per_xform) %>
+	<%
+		log2_blocks_per_xform = log2(blocks_per_xform)
+		coeff = normalization_coeff if dir == 1 else 1
+	%>
 
 	%if vertical:
 		x_num = block_id >> ${log2_blocks_per_xform};
