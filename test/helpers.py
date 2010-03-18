@@ -31,10 +31,14 @@ class CudaContext:
 	def __init__(self):
 		import pycuda.tools
 		import pycuda.driver
+		pycuda.driver.init()
 		self.context = pycuda.tools.make_default_context()
 
 		self._start = pycuda.driver.Event()
 		self._stop = pycuda.driver.Event()
+
+	def __del__(self):
+		self.context.pop()
 
 	def createQueue(self):
 		import pycuda.driver
@@ -68,7 +72,7 @@ class CudaContext:
 		return self._stop.time_since(self._start) / 1000.0
 
 	def __str__(self):
-		return "cl"
+		return "cuda"
 
 
 class CLContext:
