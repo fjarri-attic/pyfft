@@ -179,7 +179,7 @@
 			a[6]  = a[6] * complex_ctr(w2, ${dir} * w2);
 			a[7]  = a[7] * complex_ctr(w1, ${dir} * w0);
 			a[9]  = a[9] * complex_ctr(w2, ${dir} * w2);
-			a[10] = complex_ctr(${dir}, 0) * conj_transp(a[10]);
+			a[10] = conj_transp_and_mul(a[10], ${dir});
 			a[11] = a[11] * complex_ctr(-w2, ${dir} * w2);
 			a[13] = a[13] * complex_ctr(w1, ${dir} * w0);
 			a[14] = a[14] * complex_ctr(-w2, ${dir} * w2);
