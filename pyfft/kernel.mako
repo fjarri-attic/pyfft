@@ -370,7 +370,9 @@
 		{
 		%for i in range(radix):
 			if(jj < s)
+			{
 				${insertGlobalLoad(i, i * block_size, split)}
+			}
 			%if i != radix - 1:
 				jj += ${block_size / n};
 			%endif
