@@ -180,11 +180,12 @@ import sys
 
 DOCUMENTATION = __doc__
 
-if __name__ == "__main__":
-	print("=" * 70)
-	time1 = time.time()
+def run():
+	print "Running doctest..."
 	doctest.testmod(m=sys.modules.get(__name__))
-	time2 = time.time()
-	print("=" * 70)
 
+if __name__ == "__main__":
+	time1 = time.time()
+	run()
+	time2 = time.time()
 	print("Finished in {0:.3f} seconds".format(time2 - time1))
