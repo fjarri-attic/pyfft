@@ -34,9 +34,6 @@ class CudaContext:
 		pycuda.driver.init()
 		self.context = pycuda.tools.make_default_context()
 
-		self._start = pycuda.driver.Event()
-		self._stop = pycuda.driver.Event()
-
 	def __del__(self):
 		self.context.pop()
 
@@ -64,7 +61,9 @@ class CudaContext:
 		return pyfft.cuda.plan(*args, **kwds)
 
 	def startTimer(self):
-		self._start.record()
+		import pycuda.driver
+		self._start = pycuda.driver.Event().record()
+		self._stop = pycuda.driver.Event()
 
 	def stopTimer(self):
 		self._stop.record()
