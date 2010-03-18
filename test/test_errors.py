@@ -53,7 +53,7 @@ def testErrors(ctx, shape, dtype, batch):
 
 	# out of place forward
 	if split:
-		plan.executeSplit(a_gpu_re, a_gpu_im, b_gpu_re, b_gpu_im, batch=batch)
+		plan.execute(a_gpu_re, a_gpu_im, b_gpu_re, b_gpu_im, batch=batch)
 		pyfft_fw_outplace = ctx.fromGpu(b_gpu_re, data_re.shape, data_re.dtype) + \
 			1j * ctx.fromGpu(b_gpu_im, data_im.shape, data_im.dtype)
 	else:
@@ -62,7 +62,7 @@ def testErrors(ctx, shape, dtype, batch):
 
 	# out of place inverse
 	if split:
-		plan.executeSplit(b_gpu_re, b_gpu_im,
+		plan.execute(b_gpu_re, b_gpu_im,
 			a_gpu_re, a_gpu_im, batch=batch, inverse=True)
 		pyfft_res_outplace = ctx.fromGpu(a_gpu_re, data_re.shape, data_re.dtype) + \
 			1j * ctx.fromGpu(a_gpu_im, data_im.shape, data_im.dtype)
@@ -76,7 +76,7 @@ def testErrors(ctx, shape, dtype, batch):
 	if split:
 		a_gpu_re = ctx.toGpu(data_re)
 		a_gpu_im = ctx.toGpu(data_im)
-		plan.executeSplit(a_gpu_re, a_gpu_im, batch=batch)
+		plan.execute(a_gpu_re, a_gpu_im, batch=batch)
 		pyfft_fw_inplace = ctx.fromGpu(a_gpu_re, data_re.shape, data_re.dtype) + \
 			1j * ctx.fromGpu(a_gpu_im, data_im.shape, data_im.dtype)
 	else:
@@ -86,7 +86,7 @@ def testErrors(ctx, shape, dtype, batch):
 
 	# inplace inverse
 	if split:
-		plan.executeSplit(a_gpu_re, a_gpu_im, batch=batch, inverse=True)
+		plan.execute(a_gpu_re, a_gpu_im, batch=batch, inverse=True)
 		pyfft_res_inplace = ctx.fromGpu(a_gpu_re, data_re.shape, data_re.dtype) + \
 			1j * ctx.fromGpu(a_gpu_im, data_im.shape, data_im.dtype)
 	else:

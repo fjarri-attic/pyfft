@@ -83,6 +83,11 @@ class FFTPlan:
 		# prepared functions and temporary buffers are cached for repeating batch sizes
 		self._last_batch_size = 0
 
+		if self._params.split:
+			self.execute = self._executeSplit
+		else:
+			self.execute = self._executeInterleaved
+
 		self._generateKernelCode()
 
 	def getQueue(self):
@@ -228,7 +233,7 @@ class FFTPlan:
 
 		self._context.wait()
 
-	def execute(self, data_in, data_out=None, inverse=False, batch=1):
+	def _executeInterleaved(self, data_in, data_out=None, inverse=False, batch=1):
 		"""Execute plan for interleaved complex array"""
 
 		if data_out is None:
@@ -239,7 +244,7 @@ class FFTPlan:
 
 		self._execute(False, is_inplace, inverse, batch, data_in, data_out)
 
-	def executeSplit(self, data_in_re, data_in_im, data_out_re=None, data_out_im=None, inverse=False, batch=1):
+	def _executeSplit(self, data_in_re, data_in_im, data_out_re=None, data_out_im=None, inverse=False, batch=1):
 		"""Execute plan for split complex array"""
 
 		if data_out_re is None and data_out_im is None:
