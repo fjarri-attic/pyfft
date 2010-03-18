@@ -115,7 +115,7 @@ class LocalFFTKernel(_FFTKernel):
 
 		radix_array = getRadixArray(n, 0)
 		if n / radix_array[0] > max_block_size:
-			radix_array = getRadixArray(n, self.max_radix)
+			radix_array = getRadixArray(n, self._params.max_radix)
 
 		assert radix_array[0] <= self._params.max_radix, "Max radix choosen is greater than allowed"
 		assert n / radix_array[0] <= max_block_size, \
