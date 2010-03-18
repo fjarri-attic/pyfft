@@ -34,12 +34,9 @@
 	%if cuda:
 		inline ${complex} operator+(${complex} a, ${complex} b) { return complex_ctr(a.x + b.x, a.y + b.y); }
 		inline ${complex} operator-(${complex} a, ${complex} b) { return complex_ctr(a.x - b.x, a.y - b.y); }
-		inline ${complex} operator*(${complex} a, ${complex} b)
-		{
-			return complex_ctr(mad(-a.y, b.y, a.x * b.x), mad(a.y, b.x, a.x * b.y));
-		}
 	%endif
 
+	#define complex_mul(a, b) complex_ctr(mad(-(a).y, (b).y, (a).x * (b).x), mad((a).y, (b).x, (a).x * (b).y))
 	#define complex_div_scalar(a, b) complex_ctr((a).x / (b), (a).y / (b))
 	#define conj(a) complex_ctr((a).x, -(a).y)
 	#define conj_transp(a) complex_ctr(-(a).y, (a).x)
@@ -138,9 +135,9 @@
 			fftKernel2S${postfix[dir]}(a + 1, a + 5);
 			fftKernel2S${postfix[dir]}(a + 2, a + 6);
 			fftKernel2S${postfix[dir]}(a + 3, a + 7);
-			a[5] = w1 * a[5];
+			a[5] = complex_mul(w1, a[5]);
 			a[6] = conj_transp_and_mul(a[6], ${dir});
-			a[7] = w3 * a[7];
+			a[7] = complex_mul(w3, a[7]);
 			fftKernel2S${postfix[dir]}(a + 0, a + 2);
 			fftKernel2S${postfix[dir]}(a + 1, a + 3);
 			fftKernel2S${postfix[dir]}(a + 4, a + 6);
@@ -168,6 +165,7 @@
 	%for dir in dirs:
 		DEVICE void fftKernel16${postfix[dir]}(${complex} *a)
 		{
+			${complex} temp;
 			const ${scalar} w0 = (${scalar})${math.cos(math.pi / 8)};
 			const ${scalar} w1 = (${scalar})${math.sin(math.pi / 8)};
 			const ${scalar} w2 = (${scalar})${math.sin(math.pi / 4)};
@@ -175,15 +173,25 @@
 			fftKernel4s${postfix[dir]}(a + 1, a + 5, a + 9,  a + 13);
 			fftKernel4s${postfix[dir]}(a + 2, a + 6, a + 10, a + 14);
 			fftKernel4s${postfix[dir]}(a + 3, a + 7, a + 11, a + 15);
-			a[5]  = a[5] * complex_ctr(w0, ${dir} * w1);
-			a[6]  = a[6] * complex_ctr(w2, ${dir} * w2);
-			a[7]  = a[7] * complex_ctr(w1, ${dir} * w0);
-			a[9]  = a[9] * complex_ctr(w2, ${dir} * w2);
+
+			temp  = complex_ctr(w0, ${dir} * w1);
+			a[5]  = complex_mul(a[5], temp);
+			temp  = complex_ctr(w1, ${dir} * w0);
+			a[7]  = complex_mul(a[7], temp);
+			temp  = complex_ctr(w2, ${dir} * w2);
+			a[6]  = complex_mul(a[6], temp);
+			a[9]  = complex_mul(a[9], temp);
+
 			a[10] = conj_transp_and_mul(a[10], ${dir});
-			a[11] = a[11] * complex_ctr(-w2, ${dir} * w2);
-			a[13] = a[13] * complex_ctr(w1, ${dir} * w0);
-			a[14] = a[14] * complex_ctr(-w2, ${dir} * w2);
-			a[15] = a[15] * complex_ctr(-w0, ${-dir} * w1);
+
+			temp  = complex_ctr(-w2, ${dir} * w2);
+			a[11] = complex_mul(a[11], temp);
+			a[14] = complex_mul(a[14], temp);
+			temp  = complex_ctr(w1, ${dir} * w0);
+			a[13] = complex_mul(a[13], temp);
+			temp  = complex_ctr(-w0, ${-dir} * w1);
+			a[15] = complex_mul(a[15], temp);
+
 			fftKernel4${postfix[dir]}(a);
 			fftKernel4${postfix[dir]}(a + 4);
 			fftKernel4${postfix[dir]}(a + 8);
@@ -205,15 +213,17 @@
 	%for dir in dirs:
 		DEVICE void fftKernel32${postfix[dir]}(${complex} *a)
 		{
+			${complex} temp;
 			%for i in range(16):
 				fftKernel2S${postfix[dir]}(a + ${i}, a + ${i + 16});
 			%endfor
 
 			%for i in range(1, 16):
-				a[${i + 16}] = a[${i + 16}] * complex_ctr(
+				temp = complex_ctr(
 					(${scalar})${math.cos(i * math.pi / 16)},
 					(${scalar})${math.sin(i * math.pi / 16)}
 				);
+				a[${i + 16}] = complex_mul(a[${i + 16}], temp);
 			%endfor
 
 			fftKernel16${postfix[dir]}(a);
@@ -569,7 +579,7 @@
 			<% ind = z * radix + k %>
 			ang = (${scalar})${2 * dir * math.pi * k / data_len} * angf;
 			complex_exp(w, ang);
-			a[${ind}] = a[${ind}] * w;
+			a[${ind}] = complex_mul(a[${ind}], w);
 		%endfor
 	%endfor
 	}
@@ -907,7 +917,7 @@ ${insertKernelHeader(kernel_name, split, scalar, complex, dir)}
 			## have to try it with double precision
 			ang = (${scalar})${2 * dir * math.pi * k / radix} * j;
 			complex_exp(w, ang);
-			a[${k}] = a[${k}] * w;
+			a[${k}] = complex_mul(a[${k}], w);
 		%endfor
 		}
 
@@ -947,7 +957,7 @@ ${insertKernelHeader(kernel_name, split, scalar, complex, dir)}
 		%for t in range(radix1):
 			ang = ang1 * (k + ${(t % radix2) * radix1 + (t / radix2)});
 			complex_exp(w, ang);
-			a[${t}] = a[${t}] * w;
+			a[${t}] = complex_mul(a[${t}], w);
 		%endfor
 	}
 	%endif
