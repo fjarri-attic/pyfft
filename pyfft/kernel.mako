@@ -43,7 +43,7 @@
 	#define complex_div_scalar(a, b) complex_ctr((a).x / (b), (a).y / (b))
 	#define conj(a) complex_ctr((a).x, -(a).y)
 	#define conj_transp(a) complex_ctr(-(a).y, (a).x)
-	#define conj_transp_and_mul(a, b) complex_ctr(-(a).y * b, (a).x * b)
+	#define conj_transp_and_mul(a, b) complex_ctr(-(a).y * (b), (a).x * (b))
 
 	%if cuda:
 		#define DEVICE __device__
