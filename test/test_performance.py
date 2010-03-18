@@ -16,7 +16,7 @@ def testPerformance(ctx, shape, buffer_size):
 
 	data = getTestData(shape, dtype, batch=batch)
 
-	a_gpu = ctx.to_gpu(data)
+	a_gpu = ctx.toGpu(data)
 	b_gpu = ctx.allocate(data.shape, data.dtype)
 
 	plan = ctx.getPlan(shape, context=ctx.context)

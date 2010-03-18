@@ -44,11 +44,11 @@ class CudaContext:
 		import pycuda.gpuarray as gpuarray
 		return gpuarray.GPUArray(shape, dtype=dtype)
 
-	def to_gpu(self, data):
+	def toGpu(self, data):
 		import pycuda.gpuarray as gpuarray
 		return gpuarray.to_gpu(data)
 
-	def from_gpu(self, gpu_buf, target_shape, target_dtype):
+	def fromGpu(self, gpu_buf, target_shape, target_dtype):
 		return gpu_buf.get()
 
 	def getMemoryPool(self):
@@ -92,14 +92,14 @@ class CLContext:
 		x, y, z = getDimensions(shape)
 		return cl.Buffer(self.context, cl.mem_flags.READ_WRITE, size=(x * y * z * dtype.itemsize))
 
-	def to_gpu(self, data):
+	def toGpu(self, data):
 		import pyopencl as cl
 		gpu_buf = self.allocate(data.shape, data.dtype)
 		queue = self.createQueue()
 		cl.enqueue_write_buffer(queue, gpu_buf, data).wait()
 		return gpu_buf
 
-	def from_gpu(self, gpu_buf, target_shape, target_dtype):
+	def fromGpu(self, gpu_buf, target_shape, target_dtype):
 		import pyopencl as cl
 		data = numpy.empty(target_shape, target_dtype)
 		queue = self.createQueue()
