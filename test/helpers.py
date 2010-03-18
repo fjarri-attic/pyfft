@@ -67,6 +67,9 @@ class CudaContext:
 		self._stop.synchronize()
 		return self._stop.time_since(self._start) / 1000.0
 
+	def __str__(self):
+		return "cl"
+
 
 class CLContext:
 
@@ -116,6 +119,9 @@ class CLContext:
 	def stopTimer(self):
 		self._stop = time.time()
 		return self._stop - self._start
+
+	def __str__(self):
+		return "cl"
 
 
 def createContext(cuda):
