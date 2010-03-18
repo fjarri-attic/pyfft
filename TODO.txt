@@ -2,6 +2,7 @@ global:
     - check work for big arrays and batch sizes (and for array size == 1 maybe, just in case)
     - check currently not working testcases (they were added in order to get 100% coverage on initially
       ported code; they do not work because of some bug in PyCuda)
+    - find out, why for (2048,) Cuda creates kernels for block size 256, and OpenCL - for 128
     - add 2D/3D tiled batch support (i.e., currently batched FFT supports only arrays, located
       successively in memory; but it is a common use case to transform several tiles of big 2D/3D array in one pass)
 
