@@ -2,7 +2,7 @@
 cuda/obj/*
 cuda/release/*
 *.o
-pycudafft.egg-info/*
+pyfft.egg-info/*
 build/*
 dist/*
 
