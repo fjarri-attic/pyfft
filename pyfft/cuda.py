@@ -96,9 +96,10 @@ def plan(*args, **kwds):
 	else:
 		mempool = None
 
-	if 'device' in kwds:
-		device_obj = kwds['device']
-		del kwds['device']
+	if 'context' in kwds:
+		context_obj = kwds['context']
+		device_obj = context_obj.get_device()
+		del kwds['context']
 	else:
 		device_obj = cuda.Context.get_device()
 
