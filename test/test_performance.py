@@ -27,7 +27,7 @@ def testPerformance(ctx, shape, buffer_size):
 	ctx.startTimer()
 	for i in xrange(iterations):
 		plan.execute(a_gpu, b_gpu, batch=batch)
-	t_pyfft = ctx.stopTimer()
+	t_pyfft = ctx.stopTimer() / iterations
 
 	print "* " + str(shape) + ", batch " + str(batch) + ": " + \
 		str(t_pyfft * 1000) + " ms, " + str(gflop / t_pyfft) + " GFLOPS"
