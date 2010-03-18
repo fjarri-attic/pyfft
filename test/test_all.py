@@ -3,7 +3,7 @@ import sys
 
 from test_doc import run as run_doc
 from test_performance import run as run_perf
-#from test_errors import run as run_err
+from test_errors import run as run_err
 #from test_functionality import run as run_func
 from helpers import DEFAULT_BUFFER_SIZE
 
