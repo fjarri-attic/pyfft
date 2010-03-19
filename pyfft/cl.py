@@ -47,11 +47,26 @@ class Module:
 
 class Context:
 
-	def __init__(self, queue):
+	def __init__(self, context_obj, queue_obj):
 
-		self._queue = queue
-		self.context = queue.get_info(cl.command_queue_info.CONTEXT)
-		self.device = queue.get_info(cl.command_queue_info.DEVICE)
+		if queue_obj is not None:
+			self._queue = queue_obj
+			self.context = self._queue.context
+			self._external_queue = True
+			self._external_context = True
+
+		elif context_obj is not None:
+			self.context = context_obj
+			self._queue = cl.CommandQueue(self.context)
+			self._external_queue = False
+			self._external_context = True
+		else:
+			self.context = cl.create_some_context(interactive=False)
+			self._queue = cl.CommandQueue(self.context)
+			self._external_context = False
+			self._external_queue = False
+
+		self.device = self._queue.device
 
 		# TODO: find a way to get memory coalescing width and shared memory
 		# granularity from device
@@ -73,7 +88,8 @@ class Context:
 		return Module(self, kernel_string)
 
 	def wait(self):
-		self._queue.finish()
+		if not self._external_queue:
+			self._queue.finish()
 
 	def enqueue(self, func, *args):
 		func(self._queue, *args)
@@ -86,16 +102,17 @@ class Context:
 
 
 def plan(*args, **kwds):
+	queue_obj = None
+	context_obj = None
 	if 'queue' in kwds:
 		queue_obj = kwds['queue']
+		context_obj = None
 		del kwds['queue']
 	elif 'context' in kwds:
-		queue_obj = cl.CommandQueue(kwds['context'])
+		context_obj = kwds['context']
+		queue_obj = None
 		del kwds['context']
-	else:
-		context_obj = cl.create_some_context(interactive=False)
-		queue_obj = cl.CommandQueue(context_obj)
 
-	context = Context(queue_obj)
+	context = Context(context_obj, queue_obj)
 
 	return FFTPlan(context, *args, **kwds)
