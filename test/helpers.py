@@ -70,6 +70,10 @@ class CudaContext:
 		self._stop.synchronize()
 		return self._stop.time_since(self._start) / 1000.0
 
+	def supportsDouble(self):
+		major, minor = self.context.get_device().compute_capability()
+		return (major == 1 and minor == 3) or major >= 2
+
 	def __str__(self):
 		return "cuda"
 
@@ -122,6 +126,10 @@ class CLContext:
 	def stopTimer(self):
 		self._stop = time.time()
 		return self._stop - self._start
+
+	def supportsDouble(self):
+		# TODO: remove hardcode
+		return False
 
 	def __str__(self):
 		return "cl"
