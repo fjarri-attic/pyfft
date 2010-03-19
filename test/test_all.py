@@ -4,7 +4,7 @@ import sys
 from test_doc import run as run_doc
 from test_performance import run as run_perf
 from test_errors import run as run_err
-#from test_functionality import run as run_func
+from test_functionality import run as run_func
 from helpers import DEFAULT_BUFFER_SIZE
 
 
@@ -40,8 +40,8 @@ elif mode not in modes:
 opts, args = parser.parse_args(args)
 
 if not opts.test_cuda and not opts.test_opencl:
-	opts.test_cuda = True
-	opts.test_opencl = True
+	opts.test_cuda = isCudaAvailable()
+	opts.test_opencl = isCLAvailable()
 
 if mode == 'func':
 	run_func(opts.test_cuda, opts.test_opencl)
