@@ -64,6 +64,15 @@ class TestPlan(unittest.TestCase):
 			error = numpy.sum(data * coeff - res) / 16
 			self.assert_(error < 1e-6)
 
+	def testAllocation(self):
+		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64)
+		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=numpy.complex64))
+		plan.execute(a_gpu)
+
+	def testPrecreatedContext(self):
+		plan = self.context.getPlan((16,), dtype=numpy.complex64,
+			context=self.context.context)
+
 
 class CudaPlan(TestPlan):
 
@@ -75,6 +84,16 @@ class CLPlan(TestPlan):
 
 	def setUp(self):
 		self.context = createContext(False)
+
+	def testPrecreatedQueue(self):
+		import pyopencl as cl
+		queue = cl.CommandQueue(self.context.context)
+		plan = self.context.getPlan((16,), dtype=numpy.complex64, queue=queue)
+
+	def testGetQueue(self):
+		plan = self.context.getPlan((16,), dtype=numpy.complex64, queue=queue)
+		a_gpu = self.context.toGpu(numpy.ones((16,), dtype=numpy.complex64))
+		plan.execute(a_gpu)
 
 
 def run(test_cuda, test_opencl):
