@@ -128,8 +128,7 @@ class CLContext:
 		return self._stop - self._start
 
 	def supportsDouble(self):
-		# TODO: remove hardcode
-		return False
+		return "cl_khr_fp64" in self.context.devices[0].extensions
 
 	def __str__(self):
 		return "cl"
