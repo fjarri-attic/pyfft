@@ -29,7 +29,7 @@ def testPerformance(ctx, shape, buffer_size):
 		plan.execute(a_gpu, b_gpu, batch=batch)
 	t_pyfft = ctx.stopTimer() / iterations
 
-	print "* " + str(shape) + ", batch " + str(batch) + ": " + \
+	print "* " + str(ctx) + ", " + str(shape) + ", batch " + str(batch) + ": " + \
 		str(t_pyfft * 1000) + " ms, " + str(gflop / t_pyfft) + " GFLOPS"
 
 def run(test_cuda, test_opencl, buffer_size):
@@ -47,9 +47,11 @@ def run(test_cuda, test_opencl, buffer_size):
 		if not cuda and not test_opencl:
 			continue
 
+		ctx = createContext(cuda)
 		for shape in shapes:
-			ctx = createContext(cuda)
 			testPerformance(ctx, shape, buffer_size)
+
+		del ctx # just in case, to make sure it is deleted before the next one is created
 
 if __name__ == "__main__":
 	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE)
