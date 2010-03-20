@@ -75,6 +75,18 @@ class TestPlan(unittest.TestCase):
 		a_gpu = self.context.toGpu(numpy.ones((16,), dtype=numpy.complex64))
 		plan.execute(a_gpu)
 
+	def testWrongDataSize(self):
+		self.assertRaises(ValueError, self.context.getPlan, (17,), dtype=numpy.complex64)
+
+	def testWrongDataType(self):
+		self.assertRaises(ValueError, self.context.getPlan, (16,), dtype=numpy.int32)
+
+	def testWrongShape(self):
+		self.assertRaises(ValueError, self.context.getPlan, (16, 16, 16, 16),
+			dtype=numpy.complex64)
+		self.assertRaises(ValueError, self.context.getPlan, "16",
+			dtype=numpy.complex64)
+
 
 class CudaPlan(TestPlan):
 
@@ -95,6 +107,12 @@ class CudaPlan(TestPlan):
 		plan.execute(a_gpu)
 		stream.synchronize()
 
+	def testGetStream(self):
+		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64)
+		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=numpy.complex64))
+		stream = plan.execute(a_gpu, wait_for_finish=False)
+		stream.synchronize()
+
 
 class CLPlan(TestPlan):
 
@@ -105,6 +123,12 @@ class CLPlan(TestPlan):
 		import pyopencl as cl
 		queue = cl.CommandQueue(self.context.context)
 		plan = self.context.getPlan((16,), dtype=numpy.complex64, queue=queue)
+
+	def testGetQueue(self):
+		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64)
+		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=numpy.complex64))
+		queue = plan.execute(a_gpu, wait_for_finish=False)
+		queue.finish()
 
 
 def run(test_cuda, test_opencl):
