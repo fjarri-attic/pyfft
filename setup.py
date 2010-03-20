@@ -11,7 +11,8 @@ VERSION = '0.2'
 
 setup(
 	name='pyfft',
-	packages=['pyfft'],
+	packages=['pyfft', 'test'],
+	provides=['pyfft'],
 	requires=['mako', 'numpy'],
 	version=VERSION,
 	author='Bogdan Opanchuk',
