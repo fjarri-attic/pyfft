@@ -75,6 +75,9 @@ class Context:
 	def createQueue(self):
 		pass
 
+	def getQueue(self):
+		return self._queue
+
 	def wait(self):
 		self._queue.finish()
 

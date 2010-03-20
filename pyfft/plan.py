@@ -91,9 +91,6 @@ class FFTPlan:
 
 		self._generateKernelCode()
 
-	def getQueue(self):
-		return self._context.getQueue()
-
 	def _generateKernelCode(self):
 		"""Create and compile FFT kernels"""
 
@@ -241,6 +238,8 @@ class FFTPlan:
 
 		if wait:
 			self._context.wait()
+		else:
+			return self._context.getQueue()
 
 	def _executeInterleaved(self, data_in, data_out=None, inverse=False, batch=1, wait_for_finish=None):
 		"""Execute plan for interleaved complex array"""
@@ -251,7 +250,8 @@ class FFTPlan:
 		else:
 			is_inplace = False
 
-		self._execute(False, wait_for_finish, is_inplace, inverse, batch, data_in, data_out)
+		return self._execute(False, wait_for_finish, is_inplace, inverse,
+			batch, data_in, data_out)
 
 	def _executeSplit(self, data_in_re, data_in_im, data_out_re=None, data_out_im=None, inverse=False, batch=1, wait_for_finish=None):
 		"""Execute plan for split complex array"""
@@ -263,4 +263,5 @@ class FFTPlan:
 		else:
 			is_inplace = False
 
-		self._execute(True, wait_for_finish, is_inplace, inverse, batch, data_in_re, data_in_im, data_out_re, data_out_im)
+		return self._execute(True, wait_for_finish, is_inplace, inverse,
+			batch, data_in_re, data_in_im, data_out_re, data_out_im)

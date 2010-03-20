@@ -84,6 +84,9 @@ class Context:
 		if self._recreate_stream:
 			del self._stream
 
+	def getQueue(self):
+		return self._stream
+
 	def enqueue(self, func, *args):
 		func(self._stream, *args)
 
