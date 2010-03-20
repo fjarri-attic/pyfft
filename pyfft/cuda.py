@@ -92,15 +92,15 @@ class Context:
 
 
 def plan(*args, **kwds):
-	memppol = kwds.pop('mempool', None)
+	mempool = kwds.pop('mempool', None)
 	context_obj = kwds.pop('context', None)
 	stream_obj = kwds.pop('stream', None)
 
 	if stream_obj is not None:
 		device = cuda.Context.get_device()
 		wait_for_finish = False
-	elif context is not None:
-		device = context.get_device()
+	elif context_obj is not None:
+		device = context_obj.get_device()
 		wait_for_finish = True
 		stream_obj = None
 	else:
