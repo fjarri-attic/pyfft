@@ -153,12 +153,11 @@ class FFTPlan:
 
 		return kernels
 
-	def _execute(self, split, wait_for_finish, is_inplace, inverse, batch, *args):
+	def _execute(self, wait_for_finish, is_inplace, inverse, batch, *args):
 		"""Execute plan for given data type"""
 
-		assert self._params.split == split, "Execution data type must correspond to plan data type"
-
 		inplace_done = False
+		split = self._params.split
 
 		new_batch = False
 		if self._last_batch_size != batch:
@@ -250,7 +249,7 @@ class FFTPlan:
 		else:
 			is_inplace = False
 
-		return self._execute(False, wait_for_finish, is_inplace, inverse,
+		return self._execute(wait_for_finish, is_inplace, inverse,
 			batch, data_in, data_out)
 
 	def _executeSplit(self, data_in_re, data_in_im, data_out_re=None, data_out_im=None, inverse=False, batch=1, wait_for_finish=None):
@@ -263,5 +262,5 @@ class FFTPlan:
 		else:
 			is_inplace = False
 
-		return self._execute(True, wait_for_finish, is_inplace, inverse,
+		return self._execute(wait_for_finish, is_inplace, inverse,
 			batch, data_in_re, data_in_im, data_out_re, data_out_im)
