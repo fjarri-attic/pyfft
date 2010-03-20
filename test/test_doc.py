@@ -25,15 +25,21 @@ The usage is quite simple. First, import ``numpy`` and plan creation interface f
  >>> from pyfft.cuda import Plan
  >>> import numpy
 
+Since we are using Cuda, it must be initialized before any Cuda functions are called
+(by default, the plan will use existing context, but there are other possibilities;
+see reference entry for `Plan` for further information). In addition, we will
+need ``gpuarray`` module to pass data to and from GPU:
+
+ >>> from pycuda.tools import make_default_context
+ >>> import pycuda.gpuarray as gpuarray
+ >>> import pycuda.driver as cuda
+ >>> cuda.init()
+ >>> context = make_default_context()
+
 Then the plan must be created. The creation is not very fast, mainly because of the
 compilation speed. But, fortunately, ``PyCuda`` and ``PyOpenCL`` cache compiled sources, so if you
 use the same plan for each run of your program, it will be created pretty fast.
 
-Since we are using Cuda, it must be initialized before any Cuda functions are called.
-In addition, we will need ``gpuarray`` module to pass data to and from GPU:
-
- >>> import pycuda.autoinit
- >>> import pycuda.gpuarray as gpuarray
  >>> plan = Plan((16, 16))
 
 Now, let's prepare simple test array and try to execute plan over it:
@@ -64,6 +70,10 @@ Since data is non-integer, we cannot simply compare it. We will just calculate e
  True
 
 That's good enough for single precision numbers.
+
+Last step is releasing Cuda context:
+
+ >>> context.pop()
 
 Reference
 ---------
