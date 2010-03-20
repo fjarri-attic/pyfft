@@ -22,20 +22,22 @@ parser.add_option("-s", "--buffer_size", action="store", type="int", default=DEF
 	dest="buffer_size", help="Maximum test buffer size, Mb")
 
 # Parse options and run tests
+modes = ['func', 'err', 'doc', 'perf']
 
 if len(sys.argv) == 1:
-	parser.error("Error: mode should be specified")
+	to_run = modes
+	args = []
+else:
+	# FIXME: find a way to do it using OptionParser
+	mode = sys.argv[1]
+	args = sys.argv[2:]
 
-# FIXME: find a way to do it using OptionParser
-modes = ['func', 'err', 'doc', 'perf']
-mode = sys.argv[1]
-args = sys.argv[2:]
-
-if mode.startswith("-"):
-	args = [mode] + args
-elif mode not in modes:
-	parser.print_help()
-	sys.exit(1)
+	if mode.startswith("-"):
+		args = [mode] + args
+		to_run = modes
+	elif mode not in modes:
+		parser.print_help()
+		sys.exit(1)
 
 opts, args = parser.parse_args(args)
 
@@ -43,11 +45,11 @@ if not opts.test_cuda and not opts.test_opencl:
 	opts.test_cuda = isCudaAvailable()
 	opts.test_opencl = isCLAvailable()
 
-if mode == 'func':
+if 'func' in to_run:
 	run_func(opts.test_cuda, opts.test_opencl)
-elif mode == 'err':
+if 'err' in to_run:
 	run_err(opts.test_cuda, opts.test_opencl, opts.buffer_size)
-elif mode == 'doc':
+if 'doc' in to_run:
 	run_doc()
-elif mode == 'perf':
+if 'perf' in to_run:
 	run_perf(opts.test_cuda, opts.test_opencl, opts.buffer_size)
