@@ -38,6 +38,8 @@ else:
 	elif mode not in modes:
 		parser.print_help()
 		sys.exit(1)
+	else:
+		to_run = [mode]
 
 opts, args = parser.parse_args(args)
 
