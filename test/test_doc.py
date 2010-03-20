@@ -78,12 +78,19 @@ Last step is releasing Cuda context:
 Reference
 ---------
 
-FFTPlan
-~~~~~~~
+.. _Plan:
 
-Class, containing precalculated FFT plan.
+.. _cuda.Plan:
 
-**Arguments**: ``FFTPlan(shape, dtype=numpy.complex64, mempool=None, device=None, normalize=True)``
+.. _cl.Plan:
+
+cuda.Plan, cl.Plan
+~~~~~~~~~~~~~~~~~~
+
+Creates class, containing precalculated FFT plan.
+
+**Arguments**: ``Plan(shape, dtype=numpy.complex64, mempool=None, context=None, normalize=True,
+wait_for_finish=None, stream=None, queue=None)``
 
 ``shape``:
   Problem size. Can be integer or tuple with 1, 2 or 3 integer elements. Each dimension must be
@@ -94,64 +101,131 @@ Class, containing precalculated FFT plan.
 ``dtype``:
   Numpy data type for input/output arrays. If complex data type is given, plan for interleaved
   arrays will be created. If scalar data type is given, plan will work for data arrays with
-  separate real and imaginary parts. Depending on this parameter, either `execute()`_ or
-  `executeSplit()`_ will work, while other will raise an exception.
+  separate real and imaginary parts. Depending on this parameter, `execute()`_ will have
+  different signatures; see its reference entry for details.
 
   *Currently supported*: ``numpy.complex64`` and ``numpy.float32``.
 
 ``mempool``:
-  If specified, method ``allocate`` of this object will be used to create temporary buffers.
-
-``device``:
-  Device object, which will be used to optimize kernels. If not defined, the current one will be taken.
+  **Cuda-specific**. If specified, method ``allocate`` of this object will be used to create
+  temporary buffers.
 
 ``normalize``:
   Whether to normalize inverse FFT so that IFFT(FFT(signal)) == signal. If equals to ``False``,
   IFFT(FFT(signal)) == signal * x * y * z.
 
+``wait_for_finish``:
+  Boolean variable, which tells whether it is necessary to wait on stream after scheduling all
+  FFT kernels. Default value depends on ``context``, ``stream`` and ``queue`` parameters --- see
+  `Contexts and streams usage logic`_ for details. Can be overridden by ``wait_for_finish`` parameter
+  to `execute()`_
+
+``context``:
+  Context, which will be used to compile kernels and execute plan. See `Contexts and streams usage logic`_
+  entry for details.
+
+``stream``:
+  **Cuda-specific**. An object of class ``pycuda.driver.Stream``, which will be used to schedule
+  plan execution.
+
+``queue``:
+  **OpenCL-specific**. An object of class ``pyopencl.CommandQueue``, which will be used to schedule
+  plan execution.
+
 .. _execute():
 
-FFTPlan.execute()
-~~~~~~~~~~~~~~~~~
+Plan.execute()
+~~~~~~~~~~~~~~
 
-Execute plan for interleaved data arrays.
+Execute plan for interleaved data arrays. Signature depends on ``dtype`` given to constructor:
 
-**Arguments**: ``execute(data_in, data_out=None, inverse=False, batch=1)``
+**Interleaved**: ``execute(data_in, data_out=None, inverse=False, batch=1, wait_for_finish=None)``
 
-``data_in``:
-  Input array. PyCuda's ``GPUArray`` or anything that can be cast to memory pointer is supported.
+**Split**: ``executeSplit(data_in_re, data_in_im, data_out_re=None, data_out_im=None,
+inverse=False, batch=1, wait_for_finish=None)``
 
-``data_out``:
-  Output array. If not defined, the execution will be performed in-place and the results
-  will be stored in ``data_in``.
+``data_in`` or ``data_in_re``, ``data_in_im``:
+  Input array(s). For Cuda plan PyCuda's ``GPUArray`` or anything that can be cast to memory pointer
+  is supported; for OpenCL ``Buffer`` objects are supported.
 
-``inverse``:
-  If ``True``, inverse transform will be performed.
-
-``batch``:
-  Number of data sets to process. They should be located successively in ``data_in``.
-
-.. _executeSplit():
-
-FFTPlan.executeSplit()
-~~~~~~~~~~~~~~~~~~~~~~
-
-Execute plan for split data arrays.
-
-**Arguments**: ``executeSplit(data_in_re, data_in_im, data_out_re=None, data_out_im=None, inverse=False, batch=1)``
-
-``data_in_re``, ``data_in_im``:
-  Input arrays with real and imaginary data parts correspondingly.
-
-``data_out_re``, ``data_out_im``:
-  Output arrays. If not defined, the execution will be performed in-place and the results
-  will be stored in ``data_in_re`` and ``data_in_im``.
+``data_out`` or ``data_out_re``, ``data_out_im``:
+  Output array(s). If not defined, the execution will be performed in-place and the results
+  will be stored in ``data_in`` or ``data_in_re``, ``data_in_im``.
 
 ``inverse``:
   If ``True``, inverse transform will be performed.
 
 ``batch``:
   Number of data sets to process. They should be located successively in ``data_in``.
+
+``wait_for_finish``:
+  Whether to wait for scheduled FFT kernels to finish. Overrides setting, which was specified
+  during plan creation.
+
+**Returns**
+  ``None`` if waiting for scheduled kernels; ``Stream`` or ``CommandQueue`` object otherwise.
+  User is expected to handle this object with care, since it can be reused during the next call
+  to `execute()`_.
+
+Contexts and streams usage logic
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Plan behavior can differ depending on values of ``context``, ``stream``/``queue`` and
+``wait_for_finish`` parameters. These differences should, in theory, make the module
+more convenient to use.
+
+``wait_for_finish`` parameter can be set on three levels. First, there is a default value
+which depends on ``context`` and ``stream``/``queue`` parameters (see details below). It
+can be overridden by explicitly passing it as an argument to constructor. This setting,
+in turn, can be overridden by passing ``wait_for_finish`` keyword to `execute()`_.
+
+----
+Cuda
+----
+
+1. ``context`` and ``stream`` are ``None``:
+
+  * Current (at the moment of plan creation) context and device will be used to create kernels.
+  * ``Stream`` will be created internally and used for each `execute()`_ call.
+  * Default value of ``wait_for_finish`` is ``True``.
+
+2. ``stream`` is not ``None``:
+
+  * ``context`` is ignored.
+  * ``stream`` is remembered and used.
+  * `execute()`_ will assume that context, corresponding to given stream is active at the time of the call.
+  * Default value of ``wait_for_finish`` is ``False``.
+
+3. ``context`` is not ``None``:
+
+  * `execute()`_ will assume that context, corresponding to given one is active at the time of the call.
+  * New ``Stream`` is created each time `execute()`_ is called and destroyed if ``wait_for_finish``
+    finally evaluates to ``True``.
+  * Default value of ``wait_for_finish`` is ``True``.
+
+------
+OpenCL
+------
+
+1. ``context`` and ``stream`` are ``None``:
+
+  * Context will be created using ``pyopencl.create_some_context()``, and its default device
+    will be used to compile and execute kernels.
+  * ``CommandQueue`` will be created internally and used for each `execute()`_ call.
+  * Default value of ``wait_for_finish`` is ``True``.
+
+2. ``queue`` is not ``None``:
+
+  * ``queue`` is remembered and used.
+  * Target context and device are obtained from ``queue``.
+  * Default value of ``wait_for_finish`` is ``False``.
+
+3. ``context`` is not ``None``:
+
+  * ``context`` is remembered.
+  * New ``CommandQueue`` will be created on remembered context's default device each time
+    `execute()`_ is called and destroyed if ``wait_for_finish`` finally evaluates to ``False``.
+  * Default value of ``wait_for_finish`` is ``True``.
 
 Performance
 ~~~~~~~~~~~
