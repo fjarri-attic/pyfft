@@ -47,26 +47,11 @@ class Module:
 
 class Context:
 
-	def __init__(self, context_obj, queue_obj):
+	def __init__(self, context_obj, device_obj, queue_obj):
 
-		if queue_obj is not None:
-			self._queue = queue_obj
-			self.context = self._queue.context
-			self._external_queue = True
-			self._external_context = True
-
-		elif context_obj is not None:
-			self.context = context_obj
-			self._queue = cl.CommandQueue(self.context)
-			self._external_queue = False
-			self._external_context = True
-		else:
-			self.context = cl.create_some_context(interactive=False)
-			self._queue = cl.CommandQueue(self.context)
-			self._external_context = False
-			self._external_queue = False
-
-		self.device = self._queue.device
+		self._queue = queue_obj
+		self.context = context_obj
+		self.device = device_obj
 
 		# TODO: find a way to get memory coalescing width and shared memory
 		# granularity from device
@@ -87,32 +72,40 @@ class Context:
 	def compile(self, kernel_string):
 		return Module(self, kernel_string)
 
+	def createQueue(self):
+		pass
+
 	def wait(self):
-		if not self._external_queue:
-			self._queue.finish()
+		self._queue.finish()
 
 	def enqueue(self, func, *args):
 		func(self._queue, *args)
-
-	def getQueue(self):
-		return self._queue
 
 	def isCuda(self):
 		return False
 
 
 def plan(*args, **kwds):
-	queue_obj = None
-	context_obj = None
-	if 'queue' in kwds:
-		queue_obj = kwds['queue']
-		context_obj = None
-		del kwds['queue']
-	elif 'context' in kwds:
-		context_obj = kwds['context']
-		queue_obj = None
-		del kwds['context']
 
-	context = Context(context_obj, queue_obj)
+	context_obj = kwds.pop('context', None)
+	queue_obj = kwds.pop('queue', None)
 
+	if queue_obj is not None:
+		wait_for_finish = False
+		device_obj = queue_obj.device
+		context_obj = queue_obj.context
+	elif context_obj is not None:
+		queue_obj = cl.CommandQueue(context_obj)
+		device_obj = queue_obj.device
+		wait_for_finish = True
+	else:
+		context_obj = cl.create_some_context(interactive=False)
+		queue_obj = cl.CommandQueue(context_obj)
+		device_obj = queue_obj.device
+		wait_for_finish = True
+
+	if 'wait_for_finish' not in kwds or kwds['wait_for_finish'] is None:
+		kwds['wait_for_finish'] = wait_for_finish
+
+	context = Context(context_obj, device_obj, queue_obj)
 	return FFTPlan(context, *args, **kwds)

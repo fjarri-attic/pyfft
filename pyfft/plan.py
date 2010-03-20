@@ -52,7 +52,7 @@ class FFTPlan:
 	"""
 	Class for FFT plan preparation and execution.
 	"""
-	def __init__(self, context, shape, dtype=numpy.complex64, normalize=True):
+	def __init__(self, context, shape, dtype=numpy.complex64, normalize=True, wait_for_finish=None):
 
 		if isinstance(shape, int):
 			self._dim = _FFT_1D
@@ -75,6 +75,7 @@ class FFTPlan:
 		self._context = context
 		self._params = _FFTParams(shape, dtype, context)
 		self._normalize = normalize
+		self._wait_for_finish = wait_for_finish
 
 		self._tempmemobj = None
 		self._tempmemobj_re = None
@@ -155,7 +156,7 @@ class FFTPlan:
 
 		return kernels
 
-	def _execute(self, split, is_inplace, inverse, batch, *args):
+	def _execute(self, split, wait_for_finish, is_inplace, inverse, batch, *args):
 		"""Execute plan for given data type"""
 
 		assert self._params.split == split, "Execution data type must correspond to plan data type"
@@ -186,6 +187,8 @@ class FFTPlan:
 		num_kernels_is_odd = (len(self._kernels) % 2 == 1)
 		curr_read  = 0
 		curr_write = 1
+
+		self._context.createQueue()
 
 		# at least one external dram shuffle (transpose) required
 		inplace_done = False
@@ -231,9 +234,15 @@ class FFTPlan:
 				curr_read  = 1
 				curr_write = 1
 
-		self._context.wait()
+		# global wait setting has lower priority than the local one
+		wait = self._wait_for_finish
+		if wait_for_finish is not None:
+			wait = wait_for_finish
 
-	def _executeInterleaved(self, data_in, data_out=None, inverse=False, batch=1):
+		if wait:
+			self._context.wait()
+
+	def _executeInterleaved(self, data_in, data_out=None, inverse=False, batch=1, wait_for_finish=None):
 		"""Execute plan for interleaved complex array"""
 
 		if data_out is None:
@@ -242,9 +251,9 @@ class FFTPlan:
 		else:
 			is_inplace = False
 
-		self._execute(False, is_inplace, inverse, batch, data_in, data_out)
+		self._execute(False, wait_for_finish, is_inplace, inverse, batch, data_in, data_out)
 
-	def _executeSplit(self, data_in_re, data_in_im, data_out_re=None, data_out_im=None, inverse=False, batch=1):
+	def _executeSplit(self, data_in_re, data_in_im, data_out_re=None, data_out_im=None, inverse=False, batch=1, wait_for_finish=None):
 		"""Execute plan for split complex array"""
 
 		if data_out_re is None and data_out_im is None:
@@ -254,4 +263,4 @@ class FFTPlan:
 		else:
 			is_inplace = False
 
-		self._execute(True, is_inplace, inverse, batch, data_in_re, data_in_im, data_out_re, data_out_im)
+		self._execute(True, wait_for_finish, is_inplace, inverse, batch, data_in_re, data_in_im, data_out_re, data_out_im)

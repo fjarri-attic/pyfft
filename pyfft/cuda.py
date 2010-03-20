@@ -50,13 +50,12 @@ class Module:
 
 class Context:
 
-	def __init__(self, device, mempool=None, stream=None):
-		devdata = DeviceData(device)
+	def __init__(self, device, stream, mempool):
 
-		if stream is None:
-			self._stream = cuda.Stream()
-		else:
-			self._stream = stream
+		self._stream = stream
+		self._recreate_stream = stream is None
+
+		devdata = DeviceData(device)
 
 		self.min_mem_coalesce_width = {}
 		for size in [4, 8, 16]:
@@ -76,11 +75,14 @@ class Context:
 	def compile(self, kernel_string):
 		return Module(self, kernel_string)
 
-	def getQueue(self):
-		return self._stream
+	def createQueue(self):
+		if self._recreate_stream:
+			self._stream = cuda.Stream()
 
 	def wait(self):
 		self._stream.synchronize()
+		if self._recreate_stream:
+			del self._stream
 
 	def enqueue(self, func, *args):
 		func(self._stream, *args)
@@ -90,25 +92,25 @@ class Context:
 
 
 def plan(*args, **kwds):
-	if 'mempool' in kwds:
-		mempool = kwds['mempool']
-		del kwds['mempool']
-	else:
-		mempool = None
+	memppol = kwds.pop('mempool', None)
+	context_obj = kwds.pop('context', None)
+	stream_obj = kwds.pop('stream', None)
 
-	if 'context' in kwds:
-		context_obj = kwds['context']
-		device_obj = context_obj.get_device()
-		del kwds['context']
+	if stream_obj is not None:
+		device = cuda.Context.get_device()
+		wait_for_finish = False
+	elif context is not None:
+		device = context.get_device()
+		wait_for_finish = True
+		stream_obj = None
 	else:
-		device_obj = cuda.Context.get_device()
+		device = cuda.Context.get_device()
+		stream_obj = cuda.Stream()
+		wait_for_finish = False
 
-	if 'stream' in kwds:
-		stream = kwds['stream']
-		del kwds['stream']
-	else:
-		stream = None
+	if 'wait_for_finish' not in kwds or kwds['wait_for_finish'] is None:
+		kwds['wait_for_finish'] = wait_for_finish
 
-	context = Context(device_obj, mempool=mempool, stream=stream)
+	context = Context(device, stream_obj, mempool)
 
 	return FFTPlan(context, *args, **kwds)
