@@ -19,7 +19,7 @@ def testPerformance(ctx, shape, buffer_size):
 	a_gpu = ctx.toGpu(data)
 	b_gpu = ctx.allocate(data.shape, data.dtype)
 
-	plan = ctx.getPlan(shape, context=ctx.context)
+	plan = ctx.getPlan(shape, context=ctx.context, wait_for_finish=True)
 
 	gflop = 5.0e-9 * (log2(x) + log2(y) + log2(z)) * x * y * z * batch
 

@@ -49,7 +49,7 @@ def testErrors(ctx, shape, dtype, batch):
 
 	# pyfft tests
 
-	plan = ctx.getPlan(shape, dtype=dtype, context=ctx.context, normalize=True)
+	plan = ctx.getPlan(shape, dtype=dtype, context=ctx.context, normalize=True, wait_for_finish=True)
 
 	# out of place forward
 	if split:
