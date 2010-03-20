@@ -37,10 +37,6 @@ class CudaContext:
 	def __del__(self):
 		self.context.pop()
 
-	def createQueue(self):
-		import pycuda.driver
-		return pycuda.driver.Stream()
-
 	def allocate(self, shape, dtype):
 		import pycuda.gpuarray as gpuarray
 		return gpuarray.GPUArray(shape, dtype=dtype)
@@ -93,7 +89,7 @@ class CLContext:
 
 		#self.context = cl.Context(dev_type=cl.device_type.GPU)
 
-	def createQueue(self):
+	def _createQueue(self):
 		import pyopencl as cl
 		return cl.CommandQueue(self.context)
 
@@ -105,14 +101,14 @@ class CLContext:
 	def toGpu(self, data):
 		import pyopencl as cl
 		gpu_buf = self.allocate(data.shape, data.dtype)
-		queue = self.createQueue()
+		queue = self._createQueue()
 		cl.enqueue_write_buffer(queue, gpu_buf, data).wait()
 		return gpu_buf
 
 	def fromGpu(self, gpu_buf, target_shape, target_dtype):
 		import pyopencl as cl
 		data = numpy.empty(target_shape, target_dtype)
-		queue = self.createQueue()
+		queue = self._createQueue()
 		cl.enqueue_read_buffer(queue, gpu_buf, data).wait()
 		return data
 
