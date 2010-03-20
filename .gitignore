@@ -5,4 +5,5 @@ cuda/release/*
 pyfft.egg-info/*
 build/*
 dist/*
+temp/*
 
