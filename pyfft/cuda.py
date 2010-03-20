@@ -1,3 +1,7 @@
+"""
+Cuda-specific part of the module
+"""
+
 from pycuda.driver import device_attribute
 from pycuda.gpuarray import GPUArray
 import pycuda.driver as cuda
@@ -9,6 +13,7 @@ from .kernel_helpers import log2
 
 
 class Function:
+	"""Wrapper for kernel function"""
 
 	def __init__(self, context, module, name, split, block_size):
 		self._context = context
@@ -39,6 +44,7 @@ class Function:
 
 
 class Module:
+	"""Wrapper for Cuda SourceModule"""
 
 	def __init__(self, context, kernel_string):
 		self._module = SourceModule(kernel_string, no_extern_c=True)
@@ -49,6 +55,7 @@ class Module:
 
 
 class Context:
+	"""Class for plan execution context"""
 
 	def __init__(self, device, stream, mempool):
 

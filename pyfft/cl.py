@@ -1,3 +1,7 @@
+"""
+OpenCL-specific part of the module.
+"""
+
 import sys
 import pyopencl as cl
 import numpy
@@ -7,6 +11,7 @@ from .kernel_helpers import log2
 
 
 class Function:
+	"""Wrapper for kernel function"""
 
 	def __init__(self, context, program, name, split, block_size):
 		self._program = program
@@ -16,6 +21,8 @@ class Function:
 		self._context = context
 
 	def isExecutable(self):
+		# checks that number of registers this kernel uses is not
+		# too big for requested block size
 		return self._kernel.get_work_group_info(cl.kernel_work_group_info.WORK_GROUP_SIZE,
 			self._context.device) >= self._block_size[0]
 
@@ -36,6 +43,7 @@ class Function:
 
 
 class Module:
+	"""Wrapper for OpenCL module"""
 
 	def __init__(self, context, kernel_string):
 		self._program = cl.Program(context.context, kernel_string).build(options="-cl-mad-enable -cl-fast-relaxed-math")
@@ -46,12 +54,13 @@ class Module:
 
 
 class Context:
+	"""Class for plan execution context"""
 
-	def __init__(self, context_obj, device_obj, queue_obj):
+	def __init__(self, context_obj, queue_obj):
 
 		self._queue = queue_obj
 		self.context = context_obj
-		self.device = device_obj
+		self.device = self._queue.device
 
 		# TODO: find a way to get memory coalescing width and shared memory
 		# granularity from device
@@ -95,20 +104,17 @@ def Plan(*args, **kwds):
 
 	if queue_obj is not None:
 		wait_for_finish = False
-		device_obj = queue_obj.device
 		context_obj = queue_obj.context
 	elif context_obj is not None:
 		queue_obj = cl.CommandQueue(context_obj)
-		device_obj = queue_obj.device
 		wait_for_finish = True
 	else:
 		context_obj = cl.create_some_context(interactive=False)
 		queue_obj = cl.CommandQueue(context_obj)
-		device_obj = queue_obj.device
 		wait_for_finish = True
 
 	if 'wait_for_finish' not in kwds or kwds['wait_for_finish'] is None:
 		kwds['wait_for_finish'] = wait_for_finish
 
-	context = Context(context_obj, device_obj, queue_obj)
+	context = Context(context_obj, queue_obj)
 	return FFTPlan(context, *args, **kwds)
