@@ -88,7 +88,7 @@ class Context:
 		return False
 
 
-def plan(*args, **kwds):
+def Plan(*args, **kwds):
 
 	context_obj = kwds.pop('context', None)
 	queue_obj = kwds.pop('queue', None)

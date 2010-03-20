@@ -54,7 +54,7 @@ class CudaContext:
 
 	def getPlan(self, *args, **kwds):
 		import pyfft.cuda
-		return pyfft.cuda.plan(*args, **kwds)
+		return pyfft.cuda.Plan(*args, **kwds)
 
 	def startTimer(self):
 		import pycuda.driver
@@ -114,7 +114,7 @@ class CLContext:
 
 	def getPlan(self, *args, **kwds):
 		import pyfft.cl
-		return pyfft.cl.plan(*args, **kwds)
+		return pyfft.cl.Plan(*args, **kwds)
 
 	def startTimer(self):
 		self._start = time.time()

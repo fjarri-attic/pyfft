@@ -94,7 +94,7 @@ class Context:
 		return True
 
 
-def plan(*args, **kwds):
+def Plan(*args, **kwds):
 	mempool = kwds.pop('mempool', None)
 	context_obj = kwds.pop('context', None)
 	stream_obj = kwds.pop('stream', None)
