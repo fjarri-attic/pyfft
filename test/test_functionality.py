@@ -142,7 +142,7 @@ def run(test_cuda, test_opencl):
 		suites.append(unittest.TestLoader().loadTestsFromTestCase(CLPlan))
 
 	all = unittest.TestSuite(suites)
-	unittest.TextTestRunner(verbosity=3).run(all)
+	unittest.TextTestRunner(verbosity=1).run(all)
 
 if __name__ == "__main__":
 	run(isCudaAvailable(), isCLAvailable())
