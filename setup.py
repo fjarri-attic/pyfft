@@ -7,7 +7,7 @@ import os.path
 
 from test.test_doc import DOCUMENTATION
 
-VERSION = '0.2'
+VERSION = '0.3'
 
 setup(
 	name='pyfft',
