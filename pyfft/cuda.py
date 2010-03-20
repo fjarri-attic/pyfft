@@ -109,7 +109,7 @@ def Plan(*args, **kwds):
 	else:
 		device = cuda.Context.get_device()
 		stream_obj = cuda.Stream()
-		wait_for_finish = False
+		wait_for_finish = True
 
 	if 'wait_for_finish' not in kwds or kwds['wait_for_finish'] is None:
 		kwds['wait_for_finish'] = wait_for_finish
