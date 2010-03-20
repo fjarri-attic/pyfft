@@ -90,11 +90,6 @@ class CLPlan(TestPlan):
 		queue = cl.CommandQueue(self.context.context)
 		plan = self.context.getPlan((16,), dtype=numpy.complex64, queue=queue)
 
-	def testGetQueue(self):
-		plan = self.context.getPlan((16,), dtype=numpy.complex64, queue=queue)
-		a_gpu = self.context.toGpu(numpy.ones((16,), dtype=numpy.complex64))
-		plan.execute(a_gpu)
-
 
 def run(test_cuda, test_opencl):
 	print "Running functionality tests..."
