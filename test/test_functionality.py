@@ -72,6 +72,8 @@ class TestPlan(unittest.TestCase):
 	def testPrecreatedContext(self):
 		plan = self.context.getPlan((16,), dtype=numpy.complex64,
 			context=self.context.context)
+		a_gpu = self.context.toGpu(numpy.ones((16,), dtype=numpy.complex64))
+		plan.execute(a_gpu)
 
 
 class CudaPlan(TestPlan):
@@ -79,13 +81,27 @@ class CudaPlan(TestPlan):
 	def setUp(self):
 		self.context = createContext(True)
 
+	def testMempool(self):
+		import pycuda.tools
+		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64,
+			mempool=pycuda.tools.DeviceMemoryPool())
+
+	def testExternalStream(self):
+		import pycuda.driver
+		stream = pycuda.driver.Stream()
+		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64,
+			stream=stream)
+		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=numpy.complex64))
+		plan.execute(a_gpu)
+		stream.synchronize()
+
 
 class CLPlan(TestPlan):
 
 	def setUp(self):
 		self.context = createContext(False)
 
-	def testPrecreatedQueue(self):
+	def testExternalQueue(self):
 		import pyopencl as cl
 		queue = cl.CommandQueue(self.context.context)
 		plan = self.context.getPlan((16,), dtype=numpy.complex64, queue=queue)
