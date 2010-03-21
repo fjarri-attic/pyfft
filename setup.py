@@ -14,6 +14,7 @@ setup(
 	packages=['pyfft', 'test'],
 	provides=['pyfft'],
 	requires=['mako', 'numpy'],
+	package_data={'pyfft': ['*.mako']},
 	version=VERSION,
 	author='Bogdan Opanchuk',
 	author_email='mantihor@gmail.com',
