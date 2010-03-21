@@ -5,13 +5,13 @@ except ImportError:
 
 import os.path
 
-from test.test_doc import DOCUMENTATION
+from pyfft_test.test_doc import DOCUMENTATION
 
 VERSION = '0.3'
 
 setup(
 	name='pyfft',
-	packages=['pyfft', 'test'],
+	packages=['pyfft', 'pyfft_test'],
 	provides=['pyfft'],
 	requires=['mako', 'numpy'],
 	package_data={'pyfft': ['*.mako']},
