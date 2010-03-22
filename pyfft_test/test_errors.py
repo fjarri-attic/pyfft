@@ -3,7 +3,7 @@ import numpy
 from helpers import *
 
 def numpyFFT(func, data, batch):
-	res = []
+	res = numpy.empty(data.size, dtype=data.dtype)
 	data_flat = data.ravel()
 	size = data.size / batch
 
@@ -12,8 +12,8 @@ def numpyFFT(func, data, batch):
 	single_shape = tuple(single_shape)
 
 	for i in xrange(batch):
-		res.append(func(data_flat[i*size:(i+1)*size].reshape(single_shape)))
-	return numpy.concatenate(res)
+		res[i*size:(i+1)*size] = func(data_flat[i*size:(i+1)*size].reshape(single_shape)).ravel()
+	return res.reshape(data.shape)
 
 def testErrors(ctx, shape, dtype, batch):
 
