@@ -1,3 +1,9 @@
+import sys
+major, minor, micro, releaselevel, serial = sys.version_info
+if not (major == 2 and minor >= 5):
+	print("Python >=2.5 is required to use this module.")
+	sys.exit(1)
+
 try:
     from setuptools import setup
 except ImportError:
