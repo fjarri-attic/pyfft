@@ -1,6 +1,6 @@
 import numpy
 
-from .kernel import *
+from .kernel import GlobalFFTKernel, LocalFFTKernel, X_DIRECTION, Y_DIRECTION, Z_DIRECTION
 from .kernel_helpers import log2
 
 _FFT_1D = 1

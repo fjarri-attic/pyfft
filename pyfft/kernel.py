@@ -2,7 +2,7 @@ import os.path
 
 from mako.template import Template
 
-from .kernel_helpers import *
+from .kernel_helpers import log2, getRadixArray, getGlobalRadixInfo, getPadding, getSharedMemorySize
 
 X_DIRECTION = 0
 Y_DIRECTION = 1
@@ -42,7 +42,7 @@ class _FFTKernel:
 			# other errors are not expected and passed further
 			try:
 				kernel_string = self.generate(max_block_size, normalize)
-			except AssertionError as e:
+			except AssertionError:
 				continue
 
 			# compile and get function pointers
