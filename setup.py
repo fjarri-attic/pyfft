@@ -13,7 +13,7 @@ import os.path
 
 from pyfft_test.test_doc import DOCUMENTATION
 
-VERSION = '0.3'
+VERSION = '0.3.1'
 
 setup(
 	name='pyfft',
