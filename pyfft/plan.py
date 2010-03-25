@@ -1,7 +1,7 @@
 import numpy
 
 from .kernel import GlobalFFTKernel, LocalFFTKernel, X_DIRECTION, Y_DIRECTION, Z_DIRECTION
-from .kernel_helpers import log2
+from .kernel_helpers import log2, getRadixArray
 
 _FFT_1D = 1
 _FFT_2D = 2
