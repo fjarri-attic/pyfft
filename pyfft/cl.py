@@ -112,9 +112,7 @@ def Plan(*args, **kwds):
 		queue_obj = cl.CommandQueue(context_obj)
 		wait_for_finish = True
 	else:
-		context_obj = cl.create_some_context(interactive=False)
-		queue_obj = cl.CommandQueue(context_obj)
-		wait_for_finish = True
+		raise ValueError("Either context or queue must be set")
 
 	if 'wait_for_finish' not in kwds or kwds['wait_for_finish'] is None:
 		kwds['wait_for_finish'] = wait_for_finish

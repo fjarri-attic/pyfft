@@ -11,7 +11,8 @@ class TestPlan(unittest.TestCase):
 
 	def testShapes(self):
 		for shape in [16, (16,), (16, 16), (16, 16, 16)]:
-			plan = self.context.getPlan(shape, dtype=numpy.float32)
+			plan = self.context.getPlan(shape, dtype=numpy.float32,
+				context=self.context.context)
 
 	def testTypes(self):
 		dtypes = [numpy.float32, numpy.complex64]
@@ -19,7 +20,8 @@ class TestPlan(unittest.TestCase):
 			dtypes.extend([numpy.float64, numpy.complex128])
 
 		for dtype in dtypes:
-			plan = self.context.getPlan((16, 16), dtype=dtype)
+			plan = self.context.getPlan((16, 16), dtype=dtype,
+				context=self.context.context)
 
 	def testExecuteSignatureSplit(self):
 		dtype = numpy.float32
@@ -134,6 +136,9 @@ class CLPlan(TestPlan):
 		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=numpy.complex64))
 		queue = plan.execute(a_gpu, wait_for_finish=False)
 		queue.finish()
+
+	def testNoContextNoQueue(self):
+		self.assertRaises(ValueError, self.context.getPlan, (32, 32, 32), dtype=numpy.complex64)
 
 
 def run(test_cuda, test_opencl):

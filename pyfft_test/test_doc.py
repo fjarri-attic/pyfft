@@ -209,24 +209,18 @@ Cuda
 OpenCL
 ------
 
-1. ``context`` and ``queue`` are ``None``:
+Either ``context`` or ``queue`` must be set.
 
-  * Context will be created using ``pyopencl.create_some_context()``, and its default device
-    will be used to compile and execute kernels.
-  * ``CommandQueue`` will be created internally and used for each `execute()`_ call.
-  * Default value of ``wait_for_finish`` is ``True``.
-
-2. ``queue`` is not ``None``:
+1. ``queue`` is not ``None``:
 
   * ``queue`` is remembered and used.
   * Target context and device are obtained from ``queue``.
   * Default value of ``wait_for_finish`` is ``False``.
 
-3. ``context`` is not ``None``:
+2. ``context`` is not ``None``:
 
   * ``context`` is remembered.
-  * New ``CommandQueue`` will be created on remembered context's default device each time
-    `execute()`_ is called and destroyed if ``wait_for_finish`` finally evaluates to ``False``.
+  * ``CommandQueue`` will be created internally and used for each `execute()`_ call.
   * Default value of ``wait_for_finish`` is ``True``.
 
 Performance
