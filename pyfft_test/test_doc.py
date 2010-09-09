@@ -209,7 +209,7 @@ Cuda
 OpenCL
 ------
 
-1. ``context`` and ``stream`` are ``None``:
+1. ``context`` and ``queue`` are ``None``:
 
   * Context will be created using ``pyopencl.create_some_context()``, and its default device
     will be used to compile and execute kernels.
