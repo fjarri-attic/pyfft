@@ -238,6 +238,7 @@ class FFTPlan:
 		if wait:
 			self._context.wait()
 		else:
+			self._context.flush()
 			return self._context.getQueue()
 
 	def _executeInterleaved(self, data_in, data_out=None, inverse=False, batch=1, wait_for_finish=None):

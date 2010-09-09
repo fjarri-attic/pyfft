@@ -90,6 +90,9 @@ class Context:
 	def wait(self):
 		self._queue.finish()
 
+	def flush(self):
+		self._queue.flush()
+
 	def enqueue(self, func, *args):
 		func(self._queue, *args)
 

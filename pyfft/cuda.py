@@ -91,6 +91,9 @@ class Context:
 		if self._recreate_stream:
 			del self._stream
 
+	def flush(self):
+		pass
+
 	def getQueue(self):
 		return self._stream
 
