@@ -35,11 +35,11 @@ class Function:
 		kernel = self._kernel
 
 		if self._split:
-			self._kernel(queue, self._global_size, args[0], args[1], args[2], args[3],
-				self._batch_size, local_size=self._block_size)
+			self._kernel(queue, self._global_size, self._block_size,
+				args[0], args[1], args[2], args[3], self._batch_size)
 		else:
-			self._kernel(queue, self._global_size, args[0], args[1],
-				self._batch_size, local_size=self._block_size)
+			self._kernel(queue, self._global_size, self._block_size,
+				args[0], args[1], self._batch_size)
 
 
 class Module:
