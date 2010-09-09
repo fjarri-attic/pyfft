@@ -23,7 +23,8 @@ class TestPlan(unittest.TestCase):
 
 	def testExecuteSignatureSplit(self):
 		dtype = numpy.float32
-		plan = self.context.getPlan((16,), dtype=dtype)
+		plan = self.context.getPlan((16,), dtype=dtype,
+			context=self.context.context)
 		a_gpu = self.context.toGpu(numpy.ones(16, dtype=dtype))
 		b_gpu = self.context.toGpu(numpy.ones(16, dtype=dtype))
 		c_gpu = self.context.toGpu(numpy.ones(16, dtype=dtype))
@@ -36,7 +37,8 @@ class TestPlan(unittest.TestCase):
 
 	def testExecuteSignatureInterleaved(self):
 		dtype = numpy.complex64
-		plan = self.context.getPlan((16,), dtype=dtype)
+		plan = self.context.getPlan((16,), dtype=dtype,
+			context=self.context.context)
 		a_gpu = self.context.toGpu(numpy.ones(16, dtype=dtype))
 		b_gpu = self.context.toGpu(numpy.ones(16, dtype=dtype))
 
@@ -53,7 +55,8 @@ class TestPlan(unittest.TestCase):
 		data = numpy.ones(16, dtype=dtype)
 
 		for normalize in [True, False]:
-			plan = self.context.getPlan((16,), normalize=normalize)
+			plan = self.context.getPlan((16,), normalize=normalize,
+				context=self.context.context)
 			a_gpu = self.context.toGpu(data)
 			plan.execute(a_gpu)
 			plan.execute(a_gpu, inverse=True)
@@ -65,7 +68,8 @@ class TestPlan(unittest.TestCase):
 			self.assert_(error < 1e-6)
 
 	def testAllocation(self):
-		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64)
+		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64,
+			context=self.context.context)
 		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=numpy.complex64))
 		plan.execute(a_gpu)
 
@@ -125,7 +129,8 @@ class CLPlan(TestPlan):
 		plan = self.context.getPlan((16,), dtype=numpy.complex64, queue=queue)
 
 	def testGetQueue(self):
-		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64)
+		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64,
+			context=self.context.context)
 		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=numpy.complex64))
 		queue = plan.execute(a_gpu, wait_for_finish=False)
 		queue.finish()
