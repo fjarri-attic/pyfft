@@ -2,6 +2,10 @@
 Cuda-specific part of the module
 """
 
+import pycuda
+if pycuda.VERSION < (0, 94):
+	raise ImportError("PyCUDA 0.94 or newer is required")
+
 from pycuda.driver import device_attribute
 from pycuda.gpuarray import GPUArray
 import pycuda.driver as cuda

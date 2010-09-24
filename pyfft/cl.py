@@ -2,8 +2,12 @@
 OpenCL-specific part of the module.
 """
 
-import sys
 import pyopencl as cl
+
+if cl.VERSION < (0, 92):
+	raise ImportError("PyOpenCL 0.92 or newer is required")
+
+import sys
 import numpy
 
 from .plan import FFTPlan

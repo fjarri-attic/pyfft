@@ -1,5 +1,4 @@
 0.3.3:
-    - add PyCuda/PyOpenCL version checks to cuda.py/cl.py (they changed interface lately)
     - check if there is any difference in error while using __sincosf() or sincosf()
     - add parameter, allowing running tests with double precision
     - ensure all tests pass for double precision
