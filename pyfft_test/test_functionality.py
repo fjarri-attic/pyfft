@@ -57,7 +57,7 @@ class TestPlan(unittest.TestCase):
 		data = numpy.ones(16, dtype=dtype)
 
 		for normalize in [True, False]:
-			plan = self.context.getPlan((16,), normalize=normalize,
+			plan = self.context.getPlan(data.shape, normalize=normalize,
 				context=self.context.context)
 			a_gpu = self.context.toGpu(data)
 			plan.execute(a_gpu)
@@ -66,7 +66,7 @@ class TestPlan(unittest.TestCase):
 
 			coeff = 1 if normalize else 16
 
-			error = numpy.sum(data * coeff - res) / 16
+			error = numpy.sum(numpy.abs(data * coeff - res)) / 16
 			self.assert_(error < 1e-6)
 
 	def testAllocation(self):
