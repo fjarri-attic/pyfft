@@ -1,3 +1,13 @@
+0.3.3:
+    - add PyCuda/PyOpenCL version checks to cuda.py/cl.py (they changed interface lately)
+    - check if there is any difference in error while using __sincosf() or sincosf()
+    - add parameter, allowing running tests with double precision
+    - ensure all tests pass for double precision
+    - check actual error for double precision
+    - fix performance test error for big buffer sizes (probably, caused by
+      incorrect grid size)
+    - remeasure performance and update documentation
+
 global:
     - check work for big arrays and batch sizes (and for array size == 1 maybe, just in case)
     - check currently not working testcases (they were added in order to get 100% coverage on initially
