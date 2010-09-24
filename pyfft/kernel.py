@@ -47,8 +47,10 @@ class _FFTKernel:
 
 			# compile and get function pointers
 			module = self._context.compile(kernel_string)
-			func_forward = module.getFunction(self._kernel_name + "Fwd", self._params.split, self._block_size)
-			func_inverse = module.getFunction(self._kernel_name + "Inv", self._params.split, self._block_size)
+			func_forward = module.getFunction(self._kernel_name + "Fwd",
+				self._params.split, self._block_size)
+			func_inverse = module.getFunction(self._kernel_name + "Inv",
+				self._params.split, self._block_size)
 
 			# check that kernel is executable (testing only one, because the other
 			# is exactly the same)
