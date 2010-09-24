@@ -111,6 +111,8 @@ def testErrors(ctx, shape, dtype, batch, fast_math):
 
 	assert diff_err < epsilon, "difference between pyfft and numpy: " + str(diff_err)
 
+	return pyfft_err_inplace, diff_err
+
 def run(test_cuda, test_opencl, buffer_size, fast_math):
 	print "Running error tests" + \
 		(", fast math" if fast_math else ", accurate math") + "..."
@@ -142,12 +144,14 @@ def run(test_cuda, test_opencl, buffer_size, fast_math):
 			return
 
 		try:
-			testErrors(ctx, shape, dtype, batch, fast_math)
+			return testErrors(ctx, shape, dtype, batch, fast_math)
 		except Exception, e:
 			print "failed: " + str(ctx) + ", " + \
 				str(shape) + ", batch " + str(batch) + \
 				", dtype " + str(dtype) + ": " + str(e)
 			raise
+
+	errors = []
 
 	for cuda in [True, False]:
 		if cuda and not test_cuda:
@@ -159,10 +163,23 @@ def run(test_cuda, test_opencl, buffer_size, fast_math):
 		for dtype in dtypes:
 			for batch in batch_sizes:
 				for shape in shapes:
-					wrapper(ctx, shape, dtype, batch, fast_math)
+					errors.append(wrapper(ctx, shape, dtype,
+						batch, fast_math))
 
 				# while plan.mem_coalesce_with = 32
-				wrapper(ctx, (16,), dtype, batch, fast_math)
+				errors.append(wrapper(ctx, (16,), dtype, batch, fast_math))
+
+	inplace_errors = numpy.array([x[0] for x in errors if x is not None])
+	numpy_diffs = numpy.array([x[1] for x in errors if x is not None])
+
+	for arr, name in ((inplace_errors, "pyfft errors"),
+			(numpy_diffs, "pyfft-numpy diffs")):
+
+		print "* " + name + ":"
+		print "min: " + str(numpy.min(arr))
+		print "max: " + str(numpy.max(arr))
+		print "avg: " + str(numpy.sum(arr) / arr.size)
+
 
 if __name__ == "__main__":
 	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE, True)
