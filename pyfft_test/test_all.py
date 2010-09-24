@@ -18,6 +18,8 @@ parser.add_option("--cd", "--cuda", action="store_true",
 parser.add_option("--cl", "--opencl", action="store_true",
 	dest="test_opencl", help="run OpenCL tests", default=False)
 
+parser.add_option("-f", "--fast_math", action="store_true",
+	dest="fast_math", help="run OpenCL tests", default=False)
 parser.add_option("-s", "--buffer_size", action="store", type="int", default=DEFAULT_BUFFER_SIZE,
 	dest="buffer_size", help="Maximum test buffer size, Mb")
 
@@ -50,8 +52,8 @@ if not opts.test_cuda and not opts.test_opencl:
 if 'func' in to_run:
 	run_func(opts.test_cuda, opts.test_opencl)
 if 'err' in to_run:
-	run_err(opts.test_cuda, opts.test_opencl, opts.buffer_size)
+	run_err(opts.test_cuda, opts.test_opencl, opts.buffer_size, opts.fast_math)
 if 'doc' in to_run:
 	run_doc()
 if 'perf' in to_run:
-	run_perf(opts.test_cuda, opts.test_opencl, opts.buffer_size)
+	run_perf(opts.test_cuda, opts.test_opencl, opts.buffer_size, opts.fast_math)
