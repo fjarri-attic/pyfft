@@ -136,7 +136,7 @@ def run(test_cuda, test_opencl, buffer_size, fast_math):
 	batch_sizes = [1, 16, 128, 1024, 4096]
 	dtypes = [numpy.float32, numpy.complex64]
 
-	def wrapper(ctx, shape, dtype, batch=1):
+	def wrapper(ctx, shape, dtype, batch, fast_math):
 		x, y, z = getDimensions(shape)
 		if x * y * z * batch * dtype().nbytes > buffer_size * 1024 * 1024:
 			return
