@@ -33,7 +33,8 @@ def testPerformance(ctx, shape, buffer_size, fast_math):
 		str(t_pyfft * 1000) + " ms, " + str(gflop / t_pyfft) + " GFLOPS"
 
 def run(test_cuda, test_opencl, buffer_size, fast_math):
-	print "Running performance tests" + (", fast math" if fast_math else "") + "..."
+	print "Running performance tests" + \
+		(", fast math" if fast_math else ", accurate math") + "..."
 
 	shapes = [
 		(16,), (1024,), (8192,), # 1D

@@ -112,7 +112,8 @@ def testErrors(ctx, shape, dtype, batch, fast_math):
 	assert diff_err < epsilon, "difference between pyfft and numpy: " + str(diff_err)
 
 def run(test_cuda, test_opencl, buffer_size, fast_math):
-	print "Running error tests" + (", fast math" if fast_math else "") + "..."
+	print "Running error tests" + \
+		(", fast math" if fast_math else ", accurate math") + "..."
 
 	# Fill shapes
 	shapes = []

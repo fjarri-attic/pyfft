@@ -18,8 +18,8 @@ parser.add_option("--cd", "--cuda", action="store_true",
 parser.add_option("--cl", "--opencl", action="store_true",
 	dest="test_opencl", help="run OpenCL tests", default=False)
 
-parser.add_option("-f", "--fast_math", action="store_true",
-	dest="fast_math", help="run OpenCL tests", default=False)
+parser.add_option("--nf", "--no_fast_math", action="store_false",
+	dest="fast_math", help="run OpenCL tests", default=True)
 parser.add_option("-s", "--buffer_size", action="store", type="int", default=DEFAULT_BUFFER_SIZE,
 	dest="buffer_size", help="Maximum test buffer size, Mb")
 
