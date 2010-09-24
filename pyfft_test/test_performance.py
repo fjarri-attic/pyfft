@@ -1,6 +1,6 @@
 from helpers import *
 
-def testPerformance(ctx, shape, buffer_size):
+def testPerformance(ctx, shape, buffer_size, fast_math):
 
 	dtype = numpy.complex64
 	buf_size_bytes = buffer_size * 1024 * 1024
@@ -19,7 +19,7 @@ def testPerformance(ctx, shape, buffer_size):
 	a_gpu = ctx.toGpu(data)
 	b_gpu = ctx.allocate(data.shape, data.dtype)
 
-	plan = ctx.getPlan(shape, context=ctx.context, wait_for_finish=True)
+	plan = ctx.getPlan(shape, context=ctx.context, wait_for_finish=True, fast_math=fast_math)
 
 	gflop = 5.0e-9 * (log2(x) + log2(y) + log2(z)) * x * y * z * batch
 
@@ -32,8 +32,8 @@ def testPerformance(ctx, shape, buffer_size):
 	print "* " + str(ctx) + ", " + str(shape) + ", batch " + str(batch) + ": " + \
 		str(t_pyfft * 1000) + " ms, " + str(gflop / t_pyfft) + " GFLOPS"
 
-def run(test_cuda, test_opencl, buffer_size):
-	print "Running performance tests..."
+def run(test_cuda, test_opencl, buffer_size, fast_math):
+	print "Running performance tests" + (", fast math" if fast_math else "") + "..."
 
 	shapes = [
 		(16,), (1024,), (8192,), # 1D
@@ -49,9 +49,10 @@ def run(test_cuda, test_opencl, buffer_size):
 
 		ctx = createContext(cuda)
 		for shape in shapes:
-			testPerformance(ctx, shape, buffer_size)
+			testPerformance(ctx, shape, buffer_size, fast_math)
 
 		del ctx # just in case, to make sure it is deleted before the next one is created
 
 if __name__ == "__main__":
-	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE)
+	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE, True)
+	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE, False)
