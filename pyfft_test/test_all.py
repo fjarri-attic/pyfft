@@ -13,14 +13,14 @@ from helpers import DEFAULT_BUFFER_SIZE, isCudaAvailable, isCLAvailable
 parser = optparse.OptionParser(usage = "test_all.py <mode> [options]\n" +
 	"Modes: func, err, doc, perf")
 
-parser.add_option("--cd", "--cuda", action="store_true",
+parser.add_option("-c", "--cuda", action="store_true",
 	dest="test_cuda", help="run Cuda tests", default=False)
-parser.add_option("--cl", "--opencl", action="store_true",
+parser.add_option("-o", "--opencl", action="store_true",
 	dest="test_opencl", help="run OpenCL tests", default=False)
 
-parser.add_option("--nf", "--no_fast_math", action="store_false",
-	dest="fast_math", help="Disable fast (inaccurate) math", default=True)
-parser.add_option("-s", "--buffer_size", action="store", type="int", default=DEFAULT_BUFFER_SIZE,
+parser.add_option("-a", "--accurate-math", action="store_false",
+	dest="fast_math", help="Use slow, but more accurate math", default=True)
+parser.add_option("-s", "--buffer-size", action="store", type="int", default=DEFAULT_BUFFER_SIZE,
 	dest="buffer_size", help="Maximum test buffer size, Mb")
 
 # Parse options and run tests
