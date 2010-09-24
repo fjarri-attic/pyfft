@@ -5,6 +5,8 @@
     - check actual error for double precision
     - fix performance test error for big buffer sizes (probably, caused by
       incorrect grid size)
+    - check FIXME "wrapper(ctx, (16,), dtype, batch=batch) # while plan.mem_coalesce_with = 32"
+      in test_errors.py
     - remeasure performance and update documentation
 
 global:
