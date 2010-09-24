@@ -69,6 +69,21 @@ class TestPlan(unittest.TestCase):
 			error = numpy.sum(numpy.abs(data * coeff - res)) / 16
 			self.assert_(error < 1e-6)
 
+	def testFastMath(self):
+		dtype = numpy.complex64
+		data = numpy.ones(8192, dtype=dtype)
+
+		for fast_math in [True, False]:
+			plan = self.context.getPlan(data.shape, normalize=True,
+				context=self.context.context, fast_math=fast_math)
+			a_gpu = self.context.toGpu(data)
+			plan.execute(a_gpu)
+			plan.execute(a_gpu, inverse=True)
+			res = self.context.fromGpu(a_gpu, data.shape, data.dtype)
+
+			error = numpy.sum(numpy.abs(data - res)) / 16
+			self.assert_(error < 1e-6)
+
 	def testAllocation(self):
 		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64,
 			context=self.context.context)
