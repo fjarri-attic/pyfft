@@ -93,7 +93,7 @@ cuda.Plan, cl.Plan
 Creates class, containing precalculated FFT plan.
 
 **Arguments**: ``Plan(shape, dtype=numpy.complex64, mempool=None, context=None, normalize=True,
-wait_for_finish=None, stream=None, queue=None)``
+wait_for_finish=None, fast_math=True, stream=None, queue=None)``
 
 ``shape``:
   Problem size. Can be integer or tuple with 1, 2 or 3 integer elements. Each dimension must be
@@ -122,6 +122,13 @@ wait_for_finish=None, stream=None, queue=None)``
   FFT kernels. Default value depends on ``context``, ``stream`` and ``queue`` parameters --- see
   `Contexts and streams usage logic`_ for details. Can be overridden by ``wait_for_finish`` parameter
   to `execute()`_
+
+``fast_math``:
+  If ``True``, additional compiler options will be used, which increase performance at the expense of
+  accuracy. For **Cuda** it is ``-use_fast_math``, for **OpenCL** --- ``-cl-mad-enable`` and
+  ``-cl-fast-relaxed-math``. In addition, in case of **OpenCL**, ``native_cos`` and ``native_sin``
+  are used instead of ``cos`` and ``sin`` (**Cuda** uses intrinsincs automatically when
+  ``-use_fast_math`` is set).
 
 ``context``:
   Context, which will be used to compile kernels and execute plan. See `Contexts and streams usage logic`_

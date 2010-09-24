@@ -50,8 +50,9 @@ class Function:
 class Module:
 	"""Wrapper for Cuda SourceModule"""
 
-	def __init__(self, context, kernel_string):
-		self._module = SourceModule(kernel_string, no_extern_c=True)
+	def __init__(self, context, kernel_string, fast_math):
+		self._module = SourceModule(kernel_string, no_extern_c=True,
+			options=(['-use_fast_math'] if fast_math else []))
 		self._context = context
 
 	def getFunction(self, name, split, block_size):
@@ -83,8 +84,8 @@ class Context:
 			self._mempool = mempool
 			self.allocate = mempool.allocate
 
-	def compile(self, kernel_string):
-		return Module(self, kernel_string)
+	def compile(self, kernel_string, fast_math):
+		return Module(self, kernel_string, fast_math)
 
 	def createQueue(self):
 		if self._recreate_stream:

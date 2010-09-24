@@ -49,8 +49,9 @@ class Function:
 class Module:
 	"""Wrapper for OpenCL module"""
 
-	def __init__(self, context, kernel_string):
-		self._program = cl.Program(context.context, kernel_string).build(options="-cl-mad-enable -cl-fast-relaxed-math")
+	def __init__(self, context, kernel_string, fast_math):
+		self._program = cl.Program(context.context, kernel_string).build(
+			options=("-cl-mad-enable -cl-fast-relaxed-math" if fast_math else ""))
 		self._context = context
 
 	def getFunction(self, name, split, block_size):
@@ -82,8 +83,8 @@ class Context:
 	def allocate(self, size):
 		return cl.Buffer(self.context, cl.mem_flags.READ_WRITE, size=size)
 
-	def compile(self, kernel_string):
-		return Module(self, kernel_string)
+	def compile(self, kernel_string, fast_math):
+		return Module(self, kernel_string, fast_math)
 
 	def createQueue(self):
 		pass

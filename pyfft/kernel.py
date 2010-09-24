@@ -46,7 +46,7 @@ class _FFTKernel:
 				continue
 
 			# compile and get function pointers
-			module = self._context.compile(kernel_string)
+			module = self._context.compile(kernel_string, self._params.fast_math)
 			func_forward = module.getFunction(self._kernel_name + "Fwd",
 				self._params.split, self._block_size)
 			func_inverse = module.getFunction(self._kernel_name + "Inv",
@@ -141,7 +141,8 @@ class LocalFFTKernel(_FFTKernel):
 			n, radix_array, smem_size, threads_per_xform, xforms_per_block,
 			self._params.min_mem_coalesce_width, self._params.num_smem_banks,
 			self._params.size if normalize else 1,
-			log2=log2, getPadding=getPadding, cuda=self._context.isCuda())
+			log2=log2, getPadding=getPadding, cuda=self._context.isCuda(),
+			fast_math=self._params.fast_math)
 
 
 class GlobalFFTKernel(_FFTKernel):
@@ -224,7 +225,8 @@ class GlobalFFTKernel(_FFTKernel):
 			smem_size, batch_size,
 			self._horiz_bs, self._vert_bs, vertical, max_block_size,
 			self._params.size if normalize else 1,
-			log2=log2, getGlobalRadixInfo=getGlobalRadixInfo, cuda=self._context.isCuda())
+			log2=log2, getGlobalRadixInfo=getGlobalRadixInfo, cuda=self._context.isCuda(),
+			fast_math=self._params.fast_math)
 
 	def __get_batch_size(self):
 		return self._batch_size

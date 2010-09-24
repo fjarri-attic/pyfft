@@ -25,9 +25,13 @@
 
 	## TODO: add double-precision support
 	%if cuda:
-		#define complex_exp(res, ang) __sincosf(ang, &((res).y), &((res).x))
+		#define complex_exp(res, ang) sincosf(ang, &((res).y), &((res).x))
 	%else:
+		%if fast_math:
 		#define complex_exp(res, ang) (res).x = native_cos(ang); (res).y = native_sin(ang)
+		%else:
+		#define complex_exp(res, ang) (res).x = cos(ang); (res).y = sin(ang)
+		%endif
 	%endif
 
 	## These operators are supported by OpenCL

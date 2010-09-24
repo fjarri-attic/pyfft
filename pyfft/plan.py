@@ -13,11 +13,12 @@ class _FFTParams:
 	Contains different device and FFT plan parameters.
 	"""
 
-	def __init__(self, shape, dtype, context):
+	def __init__(self, shape, dtype, context, fast_math):
 
 		self.x, self.y, self.z = shape
 		self.size = self.x * self.y * self.z
 		self.context = context
+		self.fast_math = fast_math
 
 		if 2 ** log2(self.size) != self.size:
 			raise ValueError("Array dimensions must be powers of two")
@@ -52,7 +53,8 @@ class FFTPlan:
 	"""
 	Class for FFT plan preparation and execution.
 	"""
-	def __init__(self, context, shape, dtype=numpy.complex64, normalize=True, wait_for_finish=None):
+	def __init__(self, context, shape, dtype=numpy.complex64, normalize=True,
+		wait_for_finish=None, fast_math=True):
 
 		if isinstance(shape, int):
 			self._dim = _FFT_1D
@@ -73,7 +75,7 @@ class FFTPlan:
 			raise ValueError("Wrong shape")
 
 		self._context = context
-		self._params = _FFTParams(shape, dtype, context)
+		self._params = _FFTParams(shape, dtype, context, fast_math)
 		self._normalize = normalize
 		self._wait_for_finish = wait_for_finish
 
