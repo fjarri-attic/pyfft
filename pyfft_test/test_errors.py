@@ -15,7 +15,7 @@ def numpyFFT(func, data, batch):
 		res[i*size:(i+1)*size] = func(data_flat[i*size:(i+1)*size].reshape(single_shape)).ravel()
 	return res.reshape(data.shape)
 
-def testErrors(ctx, shape, dtype, batch):
+def testErrors(ctx, shape, dtype, batch, fast_math):
 
 	if dtype in DOUBLE_DTYPES:
 		epsilon = 1e-16
@@ -49,7 +49,8 @@ def testErrors(ctx, shape, dtype, batch):
 
 	# pyfft tests
 
-	plan = ctx.getPlan(shape, dtype=dtype, context=ctx.context, normalize=True, wait_for_finish=True)
+	plan = ctx.getPlan(shape, dtype=dtype, context=ctx.context, normalize=True,
+		wait_for_finish=True, fast_math=fast_math)
 
 	# out of place forward
 	if split:
@@ -110,8 +111,8 @@ def testErrors(ctx, shape, dtype, batch):
 
 	assert diff_err < epsilon, "difference between pyfft and numpy: " + str(diff_err)
 
-def run(test_cuda, test_opencl, buffer_size):
-	print "Running error tests..."
+def run(test_cuda, test_opencl, buffer_size, fast_math):
+	print "Running error tests" + (", fast math" if fast_math else "") + "..."
 
 	# Fill shapes
 	shapes = []
@@ -140,7 +141,7 @@ def run(test_cuda, test_opencl, buffer_size):
 			return
 
 		try:
-			testErrors(ctx, shape, dtype, batch=batch)
+			testErrors(ctx, shape, dtype, batch, fast_math)
 		except Exception, e:
 			print "failed: " + str(ctx) + ", " + \
 				str(shape) + ", batch " + str(batch) + \
@@ -157,8 +158,11 @@ def run(test_cuda, test_opencl, buffer_size):
 		for dtype in dtypes:
 			for batch in batch_sizes:
 				for shape in shapes:
-					wrapper(ctx, shape, dtype, batch=batch)
-				wrapper(ctx, (16,), dtype, batch=batch) # while plan.mem_coalesce_with = 32
+					wrapper(ctx, shape, dtype, batch, fast_math)
+
+				# while plan.mem_coalesce_with = 32
+				wrapper(ctx, (16,), dtype, batch, fast_math)
 
 if __name__ == "__main__":
-	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE)
+	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE, True)
+	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE, False)
