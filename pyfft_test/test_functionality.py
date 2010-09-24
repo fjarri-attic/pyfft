@@ -11,20 +11,18 @@ class TestPlan(unittest.TestCase):
 
 	def testShapes(self):
 		for shape in [16, (16,), (16, 16), (16, 16, 16)]:
-			plan = self.context.getPlan(shape, dtype=numpy.float32,
+			plan = self.context.getPlan(shape, dtype=self.scalar,
 				context=self.context.context)
 
 	def testTypes(self):
-		dtypes = [numpy.float32, numpy.complex64]
-		if self.context.supportsDouble():
-			dtypes.extend([numpy.float64, numpy.complex128])
+		dtypes = [self.scalar, self.complex]
 
 		for dtype in dtypes:
 			plan = self.context.getPlan((16, 16), dtype=dtype,
 				context=self.context.context)
 
 	def testExecuteSignatureSplit(self):
-		dtype = numpy.float32
+		dtype = self.scalar
 		plan = self.context.getPlan((16,), dtype=dtype,
 			context=self.context.context)
 		a_gpu = self.context.toGpu(numpy.ones(16, dtype=dtype))
@@ -38,7 +36,7 @@ class TestPlan(unittest.TestCase):
 		plan.execute(a_gpu, b_gpu, a_gpu, b_gpu)
 
 	def testExecuteSignatureInterleaved(self):
-		dtype = numpy.complex64
+		dtype = self.complex
 		plan = self.context.getPlan((16,), dtype=dtype,
 			context=self.context.context)
 		a_gpu = self.context.toGpu(numpy.ones(16, dtype=dtype))
@@ -53,7 +51,7 @@ class TestPlan(unittest.TestCase):
 		self.assertRaises(TypeError, plan.execute, a_gpu, b_gpu, a_gpu, b_gpu, inverse=True)
 
 	def testNormalize(self):
-		dtype = numpy.complex64
+		dtype = self.complex
 		data = numpy.ones(16, dtype=dtype)
 
 		for normalize in [True, False]:
@@ -70,7 +68,7 @@ class TestPlan(unittest.TestCase):
 			self.assert_(error < 1e-6)
 
 	def testFastMath(self):
-		dtype = numpy.complex64
+		dtype = self.complex
 		data = numpy.ones(8192, dtype=dtype)
 
 		for fast_math in [True, False]:
@@ -85,28 +83,28 @@ class TestPlan(unittest.TestCase):
 			self.assert_(error < 1e-6)
 
 	def testAllocation(self):
-		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64,
+		plan = self.context.getPlan((32, 32, 32), dtype=self.complex,
 			context=self.context.context)
-		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=numpy.complex64))
+		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=self.complex))
 		plan.execute(a_gpu)
 
 	def testPrecreatedContext(self):
-		plan = self.context.getPlan((16,), dtype=numpy.complex64,
+		plan = self.context.getPlan((16,), dtype=self.complex,
 			context=self.context.context)
-		a_gpu = self.context.toGpu(numpy.ones((16,), dtype=numpy.complex64))
+		a_gpu = self.context.toGpu(numpy.ones((16,), dtype=self.complex))
 		plan.execute(a_gpu)
 
 	def testWrongDataSize(self):
-		self.assertRaises(ValueError, self.context.getPlan, (17,), dtype=numpy.complex64)
+		self.assertRaises(ValueError, self.context.getPlan, (17,), dtype=self.complex)
 
 	def testWrongDataType(self):
 		self.assertRaises(ValueError, self.context.getPlan, (16,), dtype=numpy.int32)
 
 	def testWrongShape(self):
 		self.assertRaises(ValueError, self.context.getPlan, (16, 16, 16, 16),
-			dtype=numpy.complex64)
+			dtype=self.complex)
 		self.assertRaises(ValueError, self.context.getPlan, "16",
-			dtype=numpy.complex64)
+			dtype=self.complex)
 
 
 class CudaPlan(TestPlan):
@@ -116,21 +114,21 @@ class CudaPlan(TestPlan):
 
 	def testMempool(self):
 		import pycuda.tools
-		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64,
+		plan = self.context.getPlan((32, 32, 32), dtype=self.complex,
 			mempool=pycuda.tools.DeviceMemoryPool())
 
 	def testExternalStream(self):
 		import pycuda.driver
 		stream = pycuda.driver.Stream()
-		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64,
+		plan = self.context.getPlan((32, 32, 32), dtype=self.complex,
 			stream=stream)
-		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=numpy.complex64))
+		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=self.complex))
 		plan.execute(a_gpu)
 		stream.synchronize()
 
 	def testGetStream(self):
-		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64)
-		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=numpy.complex64))
+		plan = self.context.getPlan((32, 32, 32), dtype=self.complex)
+		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=self.complex))
 		stream = plan.execute(a_gpu, wait_for_finish=False)
 		stream.synchronize()
 
@@ -143,28 +141,53 @@ class CLPlan(TestPlan):
 	def testExternalQueue(self):
 		import pyopencl as cl
 		queue = cl.CommandQueue(self.context.context)
-		plan = self.context.getPlan((16,), dtype=numpy.complex64, queue=queue)
+		plan = self.context.getPlan((16,), dtype=self.complex, queue=queue)
 
 	def testGetQueue(self):
-		plan = self.context.getPlan((32, 32, 32), dtype=numpy.complex64,
+		plan = self.context.getPlan((32, 32, 32), dtype=self.complex,
 			context=self.context.context)
-		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=numpy.complex64))
+		a_gpu = self.context.toGpu(numpy.ones((32, 32, 32), dtype=self.complex))
 		queue = plan.execute(a_gpu, wait_for_finish=False)
 		queue.finish()
 
 	def testNoContextNoQueue(self):
-		self.assertRaises(ValueError, self.context.getPlan, (32, 32, 32), dtype=numpy.complex64)
+		self.assertRaises(ValueError, self.context.getPlan, (32, 32, 32), dtype=self.complex)
 
+
+def setPrecision(cls, is_double):
+	class Temp(cls):
+		scalar = numpy.float64 if is_double else numpy.float32
+		complex = numpy.complex128 if is_double else numpy.complex64
+
+	Temp.__name__ = cls.__name__ + "_" + ("double" if is_double else "float")
+	return Temp
 
 def run(test_cuda, test_opencl):
 	print "Running functionality tests..."
 
 	suites = []
+	add_suite = lambda cls, is_double: suites.append(
+		unittest.TestLoader().loadTestsFromTestCase(setPrecision(cls, is_double)))
+
 	if test_cuda:
-		suites.append(unittest.TestLoader().loadTestsFromTestCase(CudaPlan))
+		add_suite(CudaPlan, False)
+
+		ctx = createContext(True)
+		double_available = ctx.supportsDouble()
+		del ctx
+
+		if double_available:
+			add_suite(CudaPlan, True)
 
 	if test_opencl:
-		suites.append(unittest.TestLoader().loadTestsFromTestCase(CLPlan))
+		add_suite(CLPlan, False)
+
+		ctx = createContext(False)
+		double_available = ctx.supportsDouble()
+		del ctx
+
+		if double_available:
+			add_suite(CLPlan, True)
 
 	all = unittest.TestSuite(suites)
 	unittest.TextTestRunner(verbosity=1).run(all)
