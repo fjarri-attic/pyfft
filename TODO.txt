@@ -1,5 +1,4 @@
 0.3.3:
-    - check if there is any difference in error while using __sincosf() or sincosf()
     - add parameter, allowing running tests with double precision
     - ensure all tests pass for double precision
     - check actual error for double precision
