@@ -25,7 +25,7 @@
 
 	## TODO: add double-precision support
 	%if cuda:
-		#define complex_exp(res, ang) sincosf(ang, &((res).y), &((res).x))
+		#define complex_exp(res, ang) ${"sincos" + ("f" if scalar == "float" else "")}(ang, &((res).y), &((res).x))
 	%else:
 		%if fast_math:
 		#define complex_exp(res, ang) (res).x = native_cos(ang); (res).y = native_sin(ang)
