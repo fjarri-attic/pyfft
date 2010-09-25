@@ -97,7 +97,7 @@ class _FFTKernel:
 			blocks_num *= batch
 
 		if blocks_num > self._params.max_grid_x:
-			grid = (self._params.max_grid_x, self._params.max_grid_x / blocks_num)
+			grid = (self._params.max_grid_x, blocks_num / self._params.max_grid_x)
 		else:
 			grid = (blocks_num, 1)
 
