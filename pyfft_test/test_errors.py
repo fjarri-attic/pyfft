@@ -18,7 +18,7 @@ def numpyFFT(func, data, batch):
 def testErrors(ctx, shape, dtype, batch, fast_math):
 
 	if dtype in DOUBLE_DTYPES:
-		epsilon = 1e-16
+		epsilon = 1e-11
 	else:
 		epsilon = 1.1e-6
 
