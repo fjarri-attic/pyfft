@@ -175,12 +175,11 @@ def difference(arr1, arr2, batch):
 	return avg / batch
 
 def getTestArray(shape, dtype, batch):
-	arrays = []
-	for i in xrange(batch):
-		#arrays.append(numpy.ones(shape, dtype=dtype))
-		arrays.append(numpy.random.randn(*shape).astype(dtype))
+	shape = list(shape)
+	shape[0] *= batch
+	shape = tuple(shape)
 
-	return numpy.concatenate(arrays)
+	return numpy.random.randn(*shape).astype(dtype)
 
 def getTestData(shape, dtype, batch):
 	if dtype in COMPLEX_DTYPES:
