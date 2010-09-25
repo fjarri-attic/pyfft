@@ -1,6 +1,8 @@
 #ifndef _BATCHFFT_H_
 #define _BATCHFFT_H_
 
+#include "defines.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

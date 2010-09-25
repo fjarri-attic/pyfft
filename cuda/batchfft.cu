@@ -1,14 +1,14 @@
 #include <cutil_inline.h>
 #include <assert.h>
 
-#include "cudabuffer.h"
+#include "defines.h"
 #include "batchfft.h"
 #include "transpose.cuh"
 
 ////////////////////////////////////////////////////////////////////////////////
 cufftResult batchfftFillPlan(batchfftHandle *plan, int nx, int ny, int nz, cufftType type, int batch)
 {
-	if(type != CUFFT_C2C)
+	if(type != PLAN_TYPE)
 		return CUFFT_INVALID_TYPE;
 
 	if(nx % HALF_WARP_SIZE != 0)
@@ -120,7 +120,7 @@ cufftResult batchfftExecute2D(batchfftHandle &plan, complexType* idata, complexT
 	cudaError_t cudaret = cudaSuccess;
 
 	// Transform rows
-	cufftret = cufftExecC2C(plan.xplan, idata, odata, sign);
+	cufftret = executePlan(plan.xplan, idata, odata, sign);
 	if(cufftret != CUFFT_SUCCESS)
 		return cufftret;
 
@@ -130,7 +130,7 @@ cufftResult batchfftExecute2D(batchfftHandle &plan, complexType* idata, complexT
 		return CUFFT_EXEC_FAILED;
 
 	// Transform columns
-	cufftret = cufftExecC2C(plan.yplan, plan.temp, plan.temp, sign);
+	cufftret = executePlan(plan.yplan, plan.temp, plan.temp, sign);
 	if(cufftret != CUFFT_SUCCESS)
 		return cufftret;
 
@@ -155,7 +155,7 @@ cufftResult batchfftExecute3D(batchfftHandle &plan, complexType* idata, complexT
 	if(cudaret != cudaSuccess)
 		return CUFFT_EXEC_FAILED;
 
-	cufftret = cufftExecC2C(plan.zplan, plan.temp, plan.temp, sign);
+	cufftret = executePlan(plan.zplan, plan.temp, plan.temp, sign);
 	if(cufftret != CUFFT_SUCCESS)
 		return cufftret;
 
