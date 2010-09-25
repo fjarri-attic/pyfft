@@ -11,7 +11,7 @@
 
 // Increase this if your videocards allows you to do it
 // Must be a power of two
-#define TEST_BUFFER_SIZE (16 * 1024 * 1024)
+#define TEST_BUFFER_SIZE (32 * 1024 * 1024)
 
 #define NUMITER 10
 
