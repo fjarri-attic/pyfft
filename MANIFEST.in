@@ -1,3 +1,4 @@
 include *.rst
 include *.py
 include pyfft/*.mako
+include test/*.py

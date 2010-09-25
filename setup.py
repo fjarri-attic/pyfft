@@ -17,7 +17,7 @@ VERSION = '0.3.2'
 
 setup(
 	name='pyfft',
-	packages=['pyfft', 'pyfft_test'],
+	packages=['pyfft'],
 	provides=['pyfft'],
 	requires=['mako', 'numpy'],
 	package_data={'pyfft': ['*.mako']},
