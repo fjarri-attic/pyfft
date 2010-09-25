@@ -4,7 +4,7 @@ import time
 COMPLEX_DTYPES = [numpy.complex64, numpy.complex128]
 DOUBLE_DTYPES = [numpy.float64, numpy.complex128]
 
-DEFAULT_BUFFER_SIZE = 16
+DEFAULT_BUFFER_SIZE = 32
 
 
 def isCLAvailable():
