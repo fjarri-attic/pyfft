@@ -1,8 +1,6 @@
 0.3.3:
     - ensure all tests pass for double precision
     - check actual error for double precision
-    - fix performance test error for big buffer sizes (probably, caused by
-      incorrect grid size)
     - check FIXME "wrapper(ctx, (16,), dtype, batch=batch) # while plan.mem_coalesce_with = 32"
       in test_errors.py
     - remeasure performance and update documentation
@@ -14,6 +12,7 @@ global:
     - find out, why for (2048,) Cuda creates kernels for block size 256, and OpenCL - for 128
     - add 2D/3D tiled batch support (i.e., currently batched FFT supports only arrays, located
       successively in memory; but it is a common use case to transform several tiles of big 2D/3D array in one pass)
+    - add support for non-power-of-2 sized arrays
 
 optimizations:
     - replace mad24() with vector function

@@ -76,6 +76,7 @@ class Context:
 		self.num_smem_banks = devdata.smem_granularity
 		self.max_registers = device.get_attribute(device_attribute.MAX_REGISTERS_PER_BLOCK)
 		self.max_grid_x = 2 ** log2(device.get_attribute(device_attribute.MAX_GRID_DIM_X))
+		self.max_grid_y = 2 ** log2(device.get_attribute(device_attribute.MAX_GRID_DIM_Y))
 		self.max_block_size = device.get_attribute(device_attribute.MAX_BLOCK_DIM_X)
 
 		if mempool is None:

@@ -43,6 +43,7 @@ class _FFTParams:
 		self.min_mem_coalesce_width = context.min_mem_coalesce_width[global_memory_word]
 		self.num_smem_banks = context.num_smem_banks
 		self.max_grid_x = context.max_grid_x
+		self.max_grid_y = context.max_grid_y
 		self.max_block_size = context.max_block_size
 
 		self.max_smem_fft_size = 2048

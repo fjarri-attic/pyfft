@@ -101,6 +101,8 @@ class _FFTKernel:
 		else:
 			grid = (blocks_num, 1)
 
+		assert grid[1] <= self._params.max_grid_y, \
+			"Resulting grid is too big. Try to reduce array or batch size"
 		return batch, grid
 
 

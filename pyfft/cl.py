@@ -76,6 +76,7 @@ class Context:
 		# TODO: I did not find any way of getting the maximum number of workgroups
 		# We'll see if there are any problems with that
 		self.max_grid_x = sys.maxint
+		self.max_grid_y = 1
 
 		workgroup_sizes = self.device.get_info(cl.device_info.MAX_WORK_ITEM_SIZES)
 		self.max_block_size = workgroup_sizes[0]
