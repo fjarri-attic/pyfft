@@ -1,5 +1,4 @@
 0.3.3:
-    - add parameter, allowing running tests with double precision
     - ensure all tests pass for double precision
     - check actual error for double precision
     - fix performance test error for big buffer sizes (probably, caused by
