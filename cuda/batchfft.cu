@@ -1,6 +1,7 @@
 #include <cutil_inline.h>
 #include <assert.h>
 
+#include "cudabuffer.h"
 #include "batchfft.h"
 #include "transpose.cuh"
 
@@ -26,7 +27,7 @@ cufftResult batchfftFillPlan(batchfftHandle *plan, int nx, int ny, int nz, cufft
 		// Swap nx and ny so they correspoind to the 2D CUFFT API.
 		// 2D cufft expects them in the order for a declared C array:
 		//
-		// cufftComplex array[nx][ny];
+		// complexType array[nx][ny];
 		// cufftPlan2d(plan, nx, ny, type);
 		//
 		// even though ny would be considered the "x" array index for row-major
@@ -51,7 +52,7 @@ cufftResult batchfftFillPlan(batchfftHandle *plan, int nx, int ny, int nz, cufft
 	cufftResult ret = CUFFT_SUCCESS;
 	cudaError_t cudaret = cudaSuccess;
 
-	cudaret = cudaMalloc(&(plan->temp), plan->nx * plan->ny * plan->nz * plan->batch * sizeof(cufftComplex));
+	cudaret = cudaMalloc(&(plan->temp), plan->nx * plan->ny * plan->nz * plan->batch * sizeof(complexType));
 	if(cudaret != cudaSuccess)
 		return CUFFT_ALLOC_FAILED;
 
@@ -113,7 +114,7 @@ cufftResult batchfftDestroy(batchfftHandle &plan)
 	return CUFFT_SUCCESS;
 }
 
-cufftResult batchfftExecute2D(batchfftHandle &plan, cufftComplex* idata, cufftComplex* odata, int sign)
+cufftResult batchfftExecute2D(batchfftHandle &plan, complexType* idata, complexType* odata, int sign)
 {
 	cufftResult cufftret = CUFFT_SUCCESS;
 	cudaError_t cudaret = cudaSuccess;
@@ -141,7 +142,7 @@ cufftResult batchfftExecute2D(batchfftHandle &plan, cufftComplex* idata, cufftCo
 	return CUFFT_SUCCESS;
 }
 
-cufftResult batchfftExecute3D(batchfftHandle &plan, cufftComplex* idata, cufftComplex* odata, int sign)
+cufftResult batchfftExecute3D(batchfftHandle &plan, complexType* idata, complexType* odata, int sign)
 {
 	cufftResult cufftret = CUFFT_SUCCESS;
 	cudaError_t cudaret = cudaSuccess;
@@ -166,7 +167,7 @@ cufftResult batchfftExecute3D(batchfftHandle &plan, cufftComplex* idata, cufftCo
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-cufftResult batchfftExecute(batchfftHandle &plan, cufftComplex* idata, cufftComplex* odata, int sign)
+cufftResult batchfftExecute(batchfftHandle &plan, complexType* idata, complexType* odata, int sign)
 {
 	if(plan.dim == 2)
 		return batchfftExecute2D(plan, idata, odata, sign);

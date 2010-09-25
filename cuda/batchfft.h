@@ -26,7 +26,7 @@ struct batchfftHandle
 	cufftHandle yplan;	///< CUFFT plan for FFTing columns
 	cufftHandle zplan;	///< CUFFT plan for FFTing columns
 
-	cufftComplex *temp;	///< Temporary buffer for transpose kernel
+	complexType *temp;	///< Temporary buffer for transpose kernel
 
 	batchfftHandle() : temp(NULL) { }; // use temp to tell if this handle has been allocated
 };
@@ -89,7 +89,7 @@ cufftResult batchfftDestroy(batchfftHandle &plan);
  *
  * @returns See CUFFT documentation for possible return values
  */
-cufftResult batchfftExecute(batchfftHandle &plan, cufftComplex* idata, cufftComplex* odata, int sign);
+cufftResult batchfftExecute(batchfftHandle &plan, complexType* idata, complexType* odata, int sign);
 
 #ifdef __cplusplus
 }

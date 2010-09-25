@@ -4,6 +4,9 @@
 #include <assert.h>
 #include <cutil_inline.h>
 
+typedef cufftComplex complexType;
+// typedef cufftDoubleComplex complexType;
+
 
 // Wrapper for cuda memory buffer (just some convenience functions)
 template<class T>

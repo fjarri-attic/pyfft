@@ -20,7 +20,7 @@ void runTest(int x, int y, int z)
 	unsigned int timer = 0;
 	cutilCheckError(cutCreateTimer(&timer));
 
-	int batch = TEST_BUFFER_SIZE / (x * y * z * sizeof(cufftComplex));
+	int batch = TEST_BUFFER_SIZE / (x * y * z * sizeof(complexType));
 	if(batch == 0)
 	{
 		printf("Resulting buffer size is too big, test skipped\n");
@@ -30,7 +30,7 @@ void runTest(int x, int y, int z)
 	bool use_batchfft;
 	cufftHandle cufft_plan;
 	batchfftHandle batchfft_plan;
-	CudaBuffer<cufftComplex> idata(x * y * z * batch), odata(x * y * z * batch);
+	CudaBuffer<complexType> idata(x * y * z * batch), odata(x * y * z * batch);
 
 	printf("--- (%d, %d, %d), batch %d\n", x, y, z, batch);
 	float gflop = 5.0e-9 * log2((float)(x * y * z)) * x * y * z * batch;
@@ -51,18 +51,18 @@ void runTest(int x, int y, int z)
 
 	// Warming up
 	if(use_batchfft)
-		cufftSafeCall(batchfftExecute(batchfft_plan, (cufftComplex*)idata, (cufftComplex*)odata, CUFFT_FORWARD));
+		cufftSafeCall(batchfftExecute(batchfft_plan, (complexType*)idata, (complexType*)odata, CUFFT_FORWARD));
 	else
-		cufftSafeCall(cufftExecC2C(cufft_plan, (cufftComplex*)idata, (cufftComplex*)odata, CUFFT_FORWARD));
+		cufftSafeCall(cufftExecC2C(cufft_plan, (complexType*)idata, (complexType*)odata, CUFFT_FORWARD));
 	cutilSafeCall(cudaThreadSynchronize());
 
 	// measure out of place time
 	cutilCheckError(cutStartTimer(timer));
 	for(int i = 0; i < NUMITER; i++)
 		if(use_batchfft)
-			cufftSafeCall(batchfftExecute(batchfft_plan, (cufftComplex*)idata, (cufftComplex*)odata, CUFFT_FORWARD));
+			cufftSafeCall(batchfftExecute(batchfft_plan, (complexType*)idata, (complexType*)odata, CUFFT_FORWARD));
 		else
-			cufftSafeCall(cufftExecC2C(cufft_plan, (cufftComplex*)idata, (cufftComplex*)odata, CUFFT_FORWARD));
+			cufftSafeCall(cufftExecC2C(cufft_plan, (complexType*)idata, (complexType*)odata, CUFFT_FORWARD));
 	cutilSafeCall(cudaThreadSynchronize());
 	cutilCheckError(cutStopTimer(timer));
 	printf("Out-of-place time: %f ms (%f GFLOPS)\n",
@@ -75,9 +75,9 @@ void runTest(int x, int y, int z)
 	cutilCheckError(cutStartTimer(timer));
 	for(int i = 0; i < NUMITER; i++)
 		if(use_batchfft)
-			cufftSafeCall(batchfftExecute(batchfft_plan, (cufftComplex*)idata, (cufftComplex*)idata, CUFFT_FORWARD));
+			cufftSafeCall(batchfftExecute(batchfft_plan, (complexType*)idata, (complexType*)idata, CUFFT_FORWARD));
 		else
-			cufftSafeCall(cufftExecC2C(cufft_plan, (cufftComplex*)idata, (cufftComplex*)idata, CUFFT_FORWARD));
+			cufftSafeCall(cufftExecC2C(cufft_plan, (complexType*)idata, (complexType*)idata, CUFFT_FORWARD));
 	cutilSafeCall(cudaThreadSynchronize());
 	cutilCheckError(cutStopTimer(timer));
 	printf("Inplace time: %f ms (%f GFLOPS)\n",
