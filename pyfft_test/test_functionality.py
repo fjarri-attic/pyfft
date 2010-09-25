@@ -56,15 +56,15 @@ class TestPlan(unittest.TestCase):
 
 		for normalize in [True, False]:
 			plan = self.context.getPlan(data.shape, normalize=normalize,
-				context=self.context.context)
+				dtype=dtype, context=self.context.context)
 			a_gpu = self.context.toGpu(data)
 			plan.execute(a_gpu)
 			plan.execute(a_gpu, inverse=True)
 			res = self.context.fromGpu(a_gpu, data.shape, data.dtype)
 
-			coeff = 1 if normalize else 16
+			coeff = 1 if normalize else data.size
 
-			error = numpy.sum(numpy.abs(data * coeff - res)) / 16
+			error = numpy.sum(numpy.abs(data * coeff - res)) / data.size
 			self.assert_(error < 1e-6)
 
 	def testFastMath(self):
@@ -73,13 +73,13 @@ class TestPlan(unittest.TestCase):
 
 		for fast_math in [True, False]:
 			plan = self.context.getPlan(data.shape, normalize=True,
-				context=self.context.context, fast_math=fast_math)
+				dtype=dtype, context=self.context.context, fast_math=fast_math)
 			a_gpu = self.context.toGpu(data)
 			plan.execute(a_gpu)
 			plan.execute(a_gpu, inverse=True)
 			res = self.context.fromGpu(a_gpu, data.shape, data.dtype)
 
-			error = numpy.sum(numpy.abs(data - res)) / 16
+			error = numpy.sum(numpy.abs(data - res)) / data.size
 			self.assert_(error < 1e-6)
 
 	def testAllocation(self):
