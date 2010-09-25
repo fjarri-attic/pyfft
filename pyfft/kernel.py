@@ -84,11 +84,10 @@ class _FFTKernel:
 		blocks_num = self._blocks_num
 
 		if self._dir == X_DIRECTION:
+			batch *= self._params.y * self._params.z
 			if self._params.x <= self._params.max_smem_fft_size:
-				batch = self._params.y * self._params.z * batch
 				blocks_num = (batch / blocks_num + 1) if batch % blocks_num != 0 else batch / blocks_num
 			else:
-				batch *= self._params.y * self._params.z
 				blocks_num *= batch
 		elif self._dir == Y_DIRECTION:
 			batch *= self._params.z
