@@ -979,9 +979,21 @@ ${insertKernelHeader(kernel_name, split, scalar, complex, dir)}
 			%endfor
 			SYNC;
 
-			%for i in range(radix1):
-				a[${i}].${comp} = smem[smem_load_index + ${i * (radix + 1) * (block_size / radix)}];
-			%endfor
+			%if block_size >= radix:
+				%for i in range(radix1):
+					a[${i}].${comp} = smem[smem_load_index + ${i * (radix + 1) * (block_size / radix)}];
+				%endfor
+			%else:
+				<%
+					inner_iter = radix / block_size
+					outer_iter = radix1 / inner_iter
+				%>
+				%for i in range(outer_iter):
+					%for j in range(inner_iter):
+						a[${i * inner_iter + j}].${comp} = smem[smem_load_index + ${j * block_size + i * (radix + 1)}];
+					%endfor
+				%endfor
+			%endif
 			SYNC;
 		%endfor
 
