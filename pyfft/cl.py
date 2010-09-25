@@ -78,6 +78,8 @@ class Context:
 		self.max_grid_x = sys.maxint
 		self.max_grid_y = 1
 
+		self.max_shared_mem = self.device.get_info(cl.device_info.LOCAL_MEM_SIZE)
+
 		workgroup_sizes = self.device.get_info(cl.device_info.MAX_WORK_ITEM_SIZES)
 		self.max_block_size = workgroup_sizes[0]
 

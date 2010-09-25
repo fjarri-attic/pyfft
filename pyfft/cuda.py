@@ -78,6 +78,7 @@ class Context:
 		self.max_grid_x = 2 ** log2(device.get_attribute(device_attribute.MAX_GRID_DIM_X))
 		self.max_grid_y = 2 ** log2(device.get_attribute(device_attribute.MAX_GRID_DIM_Y))
 		self.max_block_size = device.get_attribute(device_attribute.MAX_BLOCK_DIM_X)
+		self.max_shared_mem = device.get_attribute(device_attribute.MAX_SHARED_MEMORY_PER_BLOCK)
 
 		if mempool is None:
 			self.allocate = cuda.mem_alloc

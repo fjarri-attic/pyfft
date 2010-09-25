@@ -46,6 +46,10 @@ class _FFTParams:
 		self.max_grid_y = context.max_grid_y
 		self.max_block_size = context.max_block_size
 
+		# FIXME: not all shared memory is available for kernel;
+		# need to find accurate modifier
+		self.max_shared_mem = context.max_shared_mem - 10 # in bytes
+
 		self.max_smem_fft_size = 2048
 		self.max_radix = 16
 

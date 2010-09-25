@@ -137,6 +137,8 @@ class LocalFFTKernel(_FFTKernel):
 		smem_size = getSharedMemorySize(n, radix_array, threads_per_xform, xforms_per_block,
 			self._params.num_smem_banks, self._params.min_mem_coalesce_width)
 
+		assert smem_size * self._params.scalar_nbytes < self._params.max_shared_mem
+
 		return _template.get_def("localKernel").render(
 			self._params.scalar, self._params.complex, self._params.split, self._kernel_name,
 			n, radix_array, smem_size, threads_per_xform, xforms_per_block,
@@ -210,6 +212,8 @@ class GlobalFFTKernel(_FFTKernel):
 				smem_size = (radix + 1) * batch_size
 			else:
 				smem_size = self._block_size * radix1
+
+		assert smem_size * self._params.scalar_nbytes < self._params.max_shared_mem
 
 		self._blocks_num = num_blocks
 
