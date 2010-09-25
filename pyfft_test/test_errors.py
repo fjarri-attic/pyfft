@@ -170,9 +170,6 @@ def run(test_cuda, test_opencl, buffer_size, fast_math, double):
 					errors.append(wrapper(ctx, shape, dtype,
 						batch, fast_math))
 
-				# while plan.mem_coalesce_with = 32
-				errors.append(wrapper(ctx, (16,), dtype, batch, fast_math))
-
 	inplace_errors = numpy.array([x[0] for x in errors if x is not None])
 	numpy_diffs = numpy.array([x[1] for x in errors if x is not None])
 

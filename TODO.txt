@@ -1,8 +1,6 @@
 0.3.3:
     - ensure all tests pass for double precision
     - check actual error for double precision
-    - check FIXME "wrapper(ctx, (16,), dtype, batch=batch) # while plan.mem_coalesce_with = 32"
-      in test_errors.py
     - remeasure performance and update documentation
 
 global:
