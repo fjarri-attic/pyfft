@@ -82,13 +82,13 @@ class _FFTKernel:
 
 	def _getKernelWorkDimensions(self, batch):
 		blocks_num = self._blocks_num
+		xforms_per_block = self._xforms_per_block
 
 		if self._dir == X_DIRECTION:
 			batch *= self._params.y * self._params.z
-			if self._params.x <= self._params.max_smem_fft_size:
-				blocks_num = (batch / blocks_num + 1) if batch % blocks_num != 0 else batch / blocks_num
-			else:
-				blocks_num *= batch
+			blocks_num = (batch / xforms_per_block + 1) if batch % xforms_per_block != 0 \
+				else (batch / xforms_per_block)
+			blocks_num *= self._blocks_num
 		elif self._dir == Y_DIRECTION:
 			batch *= self._params.z
 			blocks_num *= batch
@@ -131,7 +131,8 @@ class LocalFFTKernel(_FFTKernel):
 		block_size = 64 if threads_per_xform <= 64 else threads_per_xform
 		assert block_size <= max_block_size
 		xforms_per_block = block_size / threads_per_xform
-		self._blocks_num = xforms_per_block
+		self._blocks_num = 1
+		self._xforms_per_block = xforms_per_block
 		self._block_size = block_size
 
 		smem_size = getSharedMemorySize(n, radix_array, threads_per_xform, xforms_per_block,
@@ -216,6 +217,7 @@ class GlobalFFTKernel(_FFTKernel):
 		assert smem_size * self._params.scalar_nbytes < self._params.max_shared_mem
 
 		self._blocks_num = num_blocks
+		self._xforms_per_block = 1
 
 		if self._pass_num == num_passes - 1 and num_passes % 2 == 1:
 			self.in_place_possible = True
