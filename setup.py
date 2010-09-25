@@ -11,7 +11,7 @@ except ImportError:
 
 import os.path
 
-from pyfft_test.test_doc import DOCUMENTATION
+from test.test_doc import DOCUMENTATION
 
 VERSION = '0.3.2'
 
