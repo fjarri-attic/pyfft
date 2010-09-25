@@ -22,6 +22,8 @@ parser.add_option("-a", "--accurate-math", action="store_false",
 	dest="fast_math", help="Use slow, but more accurate math", default=True)
 parser.add_option("-s", "--buffer-size", action="store", type="int", default=DEFAULT_BUFFER_SIZE,
 	dest="buffer_size", help="Maximum test buffer size, Mb")
+parser.add_option("-d", "--double-precision", action="store_true",
+	dest="double", help="Run tests in double precision", default=False)
 
 # Parse options and run tests
 modes = ['func', 'err', 'doc', 'perf']
@@ -52,8 +54,8 @@ if not opts.test_cuda and not opts.test_opencl:
 if 'func' in to_run:
 	run_func(opts.test_cuda, opts.test_opencl)
 if 'err' in to_run:
-	run_err(opts.test_cuda, opts.test_opencl, opts.buffer_size, opts.fast_math)
+	run_err(opts.test_cuda, opts.test_opencl, opts.buffer_size, opts.fast_math, opts.double)
 if 'doc' in to_run:
 	run_doc()
 if 'perf' in to_run:
-	run_perf(opts.test_cuda, opts.test_opencl, opts.buffer_size, opts.fast_math)
+	run_perf(opts.test_cuda, opts.test_opencl, opts.buffer_size, opts.fast_math, opts.double)

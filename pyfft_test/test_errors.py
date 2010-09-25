@@ -113,8 +113,9 @@ def testErrors(ctx, shape, dtype, batch, fast_math):
 
 	return pyfft_err_inplace, diff_err
 
-def run(test_cuda, test_opencl, buffer_size, fast_math):
+def run(test_cuda, test_opencl, buffer_size, fast_math, double):
 	print "Running error tests" + \
+		(", double precision" if double else ", single precision") + \
 		(", fast math" if fast_math else ", accurate math") + "..."
 
 	# Fill shapes
@@ -136,7 +137,7 @@ def run(test_cuda, test_opencl, buffer_size, fast_math):
 				shapes.append((2 ** x, 2 ** y, 2 ** z))
 
 	batch_sizes = [1, 16, 128, 1024, 4096]
-	dtypes = [numpy.float32, numpy.complex64]
+	dtypes = [numpy.float64, numpy.complex128] if double else [numpy.float32, numpy.complex64]
 
 	def wrapper(ctx, shape, dtype, batch, fast_math):
 		x, y, z = getDimensions(shape)
@@ -161,6 +162,9 @@ def run(test_cuda, test_opencl, buffer_size, fast_math):
 
 		ctx = createContext(cuda)
 		for dtype in dtypes:
+			assert dtype not in [numpy.float64, numpy.complex128] or \
+				ctx.supportsDouble(), "Default device does not support double precision"
+
 			for batch in batch_sizes:
 				for shape in shapes:
 					errors.append(wrapper(ctx, shape, dtype,
@@ -182,5 +186,5 @@ def run(test_cuda, test_opencl, buffer_size, fast_math):
 
 
 if __name__ == "__main__":
-	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE, True)
-	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE, False)
+	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE, True, False)
+	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE, False, False)

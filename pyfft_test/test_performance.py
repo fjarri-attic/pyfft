@@ -1,8 +1,8 @@
 from helpers import *
 
-def testPerformance(ctx, shape, buffer_size, fast_math):
+def testPerformance(ctx, shape, buffer_size, fast_math, double):
 
-	dtype = numpy.complex64
+	dtype = numpy.complex128 if double else numpy.complex64
 	buf_size_bytes = buffer_size * 1024 * 1024
 	value_size = dtype().nbytes
 	iterations = 10
@@ -19,7 +19,7 @@ def testPerformance(ctx, shape, buffer_size, fast_math):
 	a_gpu = ctx.toGpu(data)
 	b_gpu = ctx.allocate(data.shape, data.dtype)
 
-	plan = ctx.getPlan(shape, context=ctx.context, wait_for_finish=True, fast_math=fast_math)
+	plan = ctx.getPlan(shape, dtype=dtype, context=ctx.context, wait_for_finish=True, fast_math=fast_math)
 
 	gflop = 5.0e-9 * (log2(x) + log2(y) + log2(z)) * x * y * z * batch
 
@@ -32,8 +32,9 @@ def testPerformance(ctx, shape, buffer_size, fast_math):
 	print "* " + str(ctx) + ", " + str(shape) + ", batch " + str(batch) + ": " + \
 		str(t_pyfft * 1000) + " ms, " + str(gflop / t_pyfft) + " GFLOPS"
 
-def run(test_cuda, test_opencl, buffer_size, fast_math):
+def run(test_cuda, test_opencl, buffer_size, fast_math, double):
 	print "Running performance tests" + \
+		(", double precision" if double else ", single precision") + \
 		(", fast math" if fast_math else ", accurate math") + "..."
 
 	shapes = [
@@ -49,11 +50,15 @@ def run(test_cuda, test_opencl, buffer_size, fast_math):
 			continue
 
 		ctx = createContext(cuda)
+
+		if double:
+			assert ctx.supportsDouble(), "Default device does not support double precision"
+
 		for shape in shapes:
-			testPerformance(ctx, shape, buffer_size, fast_math)
+			testPerformance(ctx, shape, buffer_size, fast_math, double)
 
 		del ctx # just in case, to make sure it is deleted before the next one is created
 
 if __name__ == "__main__":
-	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE, True)
-	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE, False)
+	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE, True, False)
+	run(isCudaAvailable(), isCLAvailable(), DEFAULT_BUFFER_SIZE, False, False)
