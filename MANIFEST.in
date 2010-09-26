@@ -2,3 +2,7 @@ include *.rst
 include *.py
 include pyfft/*.mako
 include test/*.py
+include cuda/*.cu
+include cuda/*.h
+include cuda/*.cuh
+include cuda/Makefile

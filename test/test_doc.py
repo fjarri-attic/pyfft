@@ -238,8 +238,8 @@ Performance
 Here is the comparison to pure Cuda program using CUFFT. Since CUFFT supports batched
 FFT only for 1D, tests for other dimensions were performed using 1D FFT and matrix
 transposes (that's why CUFFT performance is so non-uniform, but it
-is the only way of getting FFT for large batches). See ``cuda`` folder in module
-repository for details. Pyfft tests were executed with ``fast_math==True``.
+is the only way of getting FFT for large batches). See ``cuda`` folder in distribution
+for details. Pyfft tests were executed with ``fast_math==True``.
 
 In the following tables "sp" stands for "single precision", "dp" for "double precision".
 
