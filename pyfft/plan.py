@@ -47,7 +47,8 @@ class _FFTParams:
 		self.max_block_size = context.max_block_size
 
 		# FIXME: not all shared memory is available for kernel;
-		# need to find accurate modifier
+		# System seems to use 10 bytes (according to Cuda error messages, at least)
+		# Not sure though, if it is constant, or if it is the same for OpenCL
 		self.max_shared_mem = context.max_shared_mem - 10 # in bytes
 
 		self.max_smem_fft_size = 2048
