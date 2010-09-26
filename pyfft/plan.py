@@ -29,12 +29,21 @@ class _FFTParams:
 			self.complex = 'float2'
 			self.scalar_nbytes = 4
 			self.complex_nbytes = 8
+			self.max_smem_fft_size = 2048
 		elif dtype in [numpy.complex128, numpy.float64]:
 			self.split = True if dtype == numpy.float64 else False
 			self.scalar = 'double'
 			self.complex = 'double2'
 			self.scalar_nbytes = 8
 			self.complex_nbytes = 16
+
+			# FIXME: Doubles are not supported in original Apple's implementation,
+			# so I have to guess the value for this variable.
+			# Maximum size, obviously, depends on shared memory amount available,
+			# and it can be considered to be two times smaller in case of double precision
+			# (since we need to store doubles there). Therefore, I'll set it
+			# to be two times smaller than max_smem_fft_size for single precision.
+			self.max_smem_fft_size = 1024
 		else:
 			raise ValueError("Data type " + str(dtype) + " is not supported")
 
@@ -51,7 +60,6 @@ class _FFTParams:
 		# Not sure though, if it is constant, or if it is the same for OpenCL
 		self.max_shared_mem = context.max_shared_mem - 10 # in bytes
 
-		self.max_smem_fft_size = 2048
 		self.max_radix = 16
 
 
