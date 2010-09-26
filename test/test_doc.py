@@ -107,7 +107,8 @@ wait_for_finish=None, fast_math=True, stream=None, queue=None)``
   separate real and imaginary parts. Depending on this parameter, `execute()`_ will have
   different signatures; see its reference entry for details.
 
-  *Currently supported*: ``numpy.complex64`` and ``numpy.float32``.
+  *Currently supported*: ``numpy.complex64``, ``numpy.float32`` (single precision) and
+  ``numpy.complex128``, ``numpy.float64`` (double precision).
 
 ``mempool``:
   **Cuda-specific**. If specified, method ``allocate`` of this object will be used to create
