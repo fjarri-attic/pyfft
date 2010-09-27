@@ -243,7 +243,7 @@ for details. Pyfft tests were executed with ``fast_math==True``.
 
 In the following tables "sp" stands for "single precision", "dp" for "double precision".
 
-Mac OS 10.6.4, Python 3.1, Cuda 3.1, PyCuda 0.94, GF9600, 32 Mb buffer:
+Mac OS 10.6.4, Python 2.6, Cuda 3.1, PyCuda 0.94, GF9600, 32 Mb buffer:
 
 +---------------------------+------------+------------+
 | Problem size / GFLOPS     | CUFFT, sp  | pyfft, sp  |
