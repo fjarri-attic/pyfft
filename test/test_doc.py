@@ -35,15 +35,18 @@ First, import ``numpy`` and plan creation interface from ``pyfft``.
  >>> from pyfft.cuda import Plan
  >>> import numpy
 
+Import CUDA driver API root and context creation function.
+In addition, we will need ``gpuarray`` module to pass data to and from GPU.
+
+ >>> import pycuda.driver as cuda
+ >>> from pycuda.tools import make_default_context
+ >>> import pycuda.gpuarray as gpuarray
+
 Since we are using Cuda, it must be initialized before any Cuda functions are called
 (by default, the plan will use existing context, but there are other possibilities;
 see reference entry for `Plan` for further information).
-In addition, we will need ``gpuarray`` module to pass data to and from GPU.
 Stream creation is optional; if no stream is provided, ``Plan`` will create its own one.
 
- >>> from pycuda.tools import make_default_context
- >>> import pycuda.gpuarray as gpuarray
- >>> import pycuda.driver as cuda
  >>> cuda.init()
  >>> context = make_default_context()
  >>> stream = cuda.Stream()
