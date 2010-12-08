@@ -102,6 +102,71 @@ Last step is releasing Cuda context:
 
  >>> context.pop()
 
+~~~~~~~~~~~~~~
+OpenCL version
+~~~~~~~~~~~~~~
+
+OpenCL example consists of the same part as the CUDA one.
+
+Import plan class:
+
+ >>> from pyfft.cl import Plan
+ >>> import numpy
+
+Import OpenCL API root and array class:
+
+ >>> import pyopencl as cl
+ >>> import pyopencl.array as cl_array
+
+Initialize context and queue (unlike CUDA one, OpenCL plan class requires either context or queue to be specified;
+there is no "current context" in OpenCL):
+
+ >>> ctx = cl.create_some_context(interactive=False)
+ >>> queue = cl.CommandQueue(ctx)
+
+Create plan (remark about caching in PyCuda applies here too):
+
+ >>> plan = Plan((16, 16), queue=queue)
+
+Prepare data:
+
+ >>> data = numpy.ones((16, 16), dtype=numpy.complex64)
+ >>> gpu_data = cl_array.to_device(ctx, queue, data)
+ >>> print gpu_data # doctest: +ELLIPSIS
+ [[ 1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j
+    1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j]
+ ...
+  [ 1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j
+    1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j]]
+
+Forward transform:
+
+ >>> plan.execute(gpu_data.data) # doctest: +ELLIPSIS
+ <pyopencl._cl.CommandQueue object at ...>
+ >>> result = gpu_data.get()
+ >>> print result # doctest: +ELLIPSIS
+ [[ 256.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j
+      0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j
+      0.+0.j    0.+0.j]
+ ...
+  [   0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j
+      0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j
+      0.+0.j    0.+0.j]]
+
+Inverse transform:
+
+ >>> plan.execute(gpu_data.data, inverse=True) # doctest: +ELLIPSIS
+ <pyopencl._cl.CommandQueue object at ...>
+ >>> result = gpu_data.get()
+
+Check that the result is equal to the initial data array:
+
+ >>> error = numpy.abs(numpy.sum(numpy.abs(data) - numpy.abs(result)) / data.size)
+ >>> print error < 1e-6
+ True
+
+PyOpenCL does not require explicit context destruction, Python will do it for us.
+
 Reference
 ---------
 
