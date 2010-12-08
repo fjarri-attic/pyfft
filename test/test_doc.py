@@ -26,7 +26,6 @@ This overview contains basic usage examples for both backends, CUDA and OpenCL.
 CUDA part goes first and contains a bit more detailed comments,
 but they can be easily projected on OpenCL part, since the code is very similar.
 
-~~~~~~~~~~~~
 CUDA version
 ~~~~~~~~~~~~
 
@@ -102,7 +101,6 @@ Last step is releasing Cuda context:
 
  >>> context.pop()
 
-~~~~~~~~~~~~~~
 OpenCL version
 ~~~~~~~~~~~~~~
 
