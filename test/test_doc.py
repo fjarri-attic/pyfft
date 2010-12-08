@@ -22,34 +22,54 @@ the personal preference. The code can be easily changed to use any other engine.
 Quick Start
 -----------
 
-The usage is quite simple. First, import ``numpy`` and plan creation interface from ``pyfft``
-(let us use cuda in this example):
+This overview contains basic usage examples for both backends, CUDA and OpenCL.
+CUDA part goes first and contains a bit more detailed comments,
+but they can be easily projected on OpenCL part, since the code is very similar.
+
+~~~~~~~~~~~~
+CUDA version
+~~~~~~~~~~~~
+
+First, import ``numpy`` and plan creation interface from ``pyfft``.
 
  >>> from pyfft.cuda import Plan
  >>> import numpy
 
 Since we are using Cuda, it must be initialized before any Cuda functions are called
 (by default, the plan will use existing context, but there are other possibilities;
-see reference entry for `Plan` for further information). In addition, we will
-need ``gpuarray`` module to pass data to and from GPU:
+see reference entry for `Plan` for further information).
+In addition, we will need ``gpuarray`` module to pass data to and from GPU.
+Stream creation is optional; if no stream is provided, ``Plan`` will create its own one.
 
  >>> from pycuda.tools import make_default_context
  >>> import pycuda.gpuarray as gpuarray
  >>> import pycuda.driver as cuda
  >>> cuda.init()
  >>> context = make_default_context()
+ >>> stream = cuda.Stream()
 
-Then the plan must be created. The creation is not very fast, mainly because of the
-compilation speed. But, fortunately, ``PyCuda`` and ``PyOpenCL`` cache compiled sources, so if you
-use the same plan for each run of your program, it will be created pretty fast.
+Then the plan must be created.
+The creation is not very fast, mainly because of the compilation speed.
+But, fortunately, ``PyCuda`` and ``PyOpenCL`` cache compiled sources,
+so if you use the same plan for each run of your program, it will be compiled only the first time.
 
- >>> plan = Plan((16, 16))
+ >>> plan = Plan((16, 16), stream=stream)
 
-Now, let's prepare simple test array and try to execute plan over it:
+Now, let's prepare simple test array:
 
  >>> data = numpy.ones((16, 16), dtype=numpy.complex64)
  >>> gpu_data = gpuarray.to_gpu(data)
- >>> plan.execute(gpu_data)
+ >>> print gpu_data # doctest: +ELLIPSIS
+ [[ 1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j
+    1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j]
+ ...
+  [ 1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j
+    1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j  1.+0.j]]
+
+... and execute our plan:
+
+ >>> plan.execute(gpu_data) # doctest: +ELLIPSIS
+ <pycuda._driver.Stream object at ...>
  >>> result = gpu_data.get()
  >>> print result # doctest: +ELLIPSIS
  [[ 256.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j    0.+0.j
@@ -63,7 +83,8 @@ Now, let's prepare simple test array and try to execute plan over it:
 As expected, we got array with the first non-zero element, equal to array size.
 Let's now perform the inverse transform:
 
- >>> plan.execute(gpu_data, inverse=True)
+ >>> plan.execute(gpu_data, inverse=True) # doctest: +ELLIPSIS
+ <pycuda._driver.Stream object at ...>
  >>> result = gpu_data.get()
 
 Since data is non-integer, we cannot simply compare it. We will just calculate error instead.
