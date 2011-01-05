@@ -6,6 +6,11 @@
 
 <%def name="insertBaseKernels(scalar, complex)">
 
+	## For OpenCL and double precision we have to enable corresponding extension
+	%if not cuda and scalar != 'float':
+		#pragma OPENCL EXTENSION cl_khr_fp64: enable
+	%endif
+
 	%if cuda:
 		#define complex_ctr(x, y) make_${complex}(x, y)
 	%else:
@@ -27,7 +32,8 @@
 	%if cuda:
 		#define complex_exp(res, ang) ${"sincos" + ("f" if scalar == "float" else "")}(ang, &((res).y), &((res).x))
 	%else:
-		%if fast_math:
+		%if fast_math and scalar == "float":
+		## seems that there are no native_* functions for doubles in OpenCL at the moment
 		#define complex_exp(res, ang) (res).x = native_cos(ang); (res).y = native_sin(ang)
 		%else:
 		#define complex_exp(res, ang) (res).x = cos(ang); (res).y = sin(ang)
