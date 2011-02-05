@@ -15,11 +15,14 @@ from test.test_doc import DOCUMENTATION
 
 VERSION = '0.3.4'
 
+dependencies = ['mako', 'numpy']
+
 setup(
 	name='pyfft',
 	packages=['pyfft'],
 	provides=['pyfft'],
-	requires=['mako', 'numpy'],
+	requires=dependencies,
+	install_requires=dependencies,
 	package_data={'pyfft': ['*.mako']},
 	version=VERSION,
 	author='Bogdan Opanchuk',
