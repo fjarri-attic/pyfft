@@ -6,4 +6,5 @@ pyfft.egg-info/*
 build/*
 dist/*
 temp/*
+doc/build/*
 
