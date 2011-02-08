@@ -1,7 +1,6 @@
 import optparse
 import sys
 
-from test_doc import run as run_doc
 from test_performance import run as run_perf
 from test_errors import run as run_err
 from test_functionality import run as run_func
@@ -11,7 +10,7 @@ from helpers import DEFAULT_BUFFER_SIZE, isCudaAvailable, isCLAvailable
 # Parser settings
 
 parser = optparse.OptionParser(usage = "test_all.py <mode> [options]\n" +
-	"Modes: func, err, doc, perf")
+	"Modes: func, err, perf")
 
 parser.add_option("-c", "--cuda", action="store_true",
 	dest="test_cuda", help="run Cuda tests", default=False)
@@ -26,7 +25,7 @@ parser.add_option("-d", "--double-precision", action="store_true",
 	dest="double", help="Run tests in double precision", default=False)
 
 # Parse options and run tests
-modes = ['func', 'err', 'doc', 'perf']
+modes = ['func', 'err', 'perf']
 
 if len(sys.argv) == 1:
 	to_run = modes
@@ -55,7 +54,5 @@ if 'func' in to_run:
 	run_func(opts.test_cuda, opts.test_opencl)
 if 'err' in to_run:
 	run_err(opts.test_cuda, opts.test_opencl, opts.buffer_size, opts.fast_math, opts.double)
-if 'doc' in to_run:
-	run_doc()
 if 'perf' in to_run:
 	run_perf(opts.test_cuda, opts.test_opencl, opts.buffer_size, opts.fast_math, opts.double)
