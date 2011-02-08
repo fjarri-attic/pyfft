@@ -173,6 +173,10 @@ Reference
 
 .. module:: pyfft
 
+.. data:: VERSION
+
+   Tuple with integers, containing the module version, for example ``(0, 3, 4)``.
+
 .. module:: pyfft.cuda
 .. class:: Plan(shape, dtype=numpy.complex64, mempool=None, context=None, \
 		normalize=True, wait_for_finish=None, fast_math=True, stream=None)
