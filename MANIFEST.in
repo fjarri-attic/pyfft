@@ -7,4 +7,7 @@ include cuda/*.h
 include cuda/*.cuh
 include cuda/Makefile
 include examples/*.py
+include doc/source/*.rst
+include doc/source/*.py
+include doc/Makefile
 
