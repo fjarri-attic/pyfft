@@ -11,9 +11,13 @@ except ImportError:
 
 import os.path
 
-from test.test_doc import DOCUMENTATION
+setup_dir = os.path.split(os.path.abspath(__file__))[0]
+DOCUMENTATION = open(os.path.join(setup_dir, 'doc', 'source', 'index.rst')).read()
 
-VERSION = '0.3.4'
+pyfft_path = os.path.join(setup_dir, 'pyfft', '__init__.py')
+globals_dict = {}
+execfile(pyfft_path, globals_dict)
+VERSION = '.'.join([str(x) for x in globals_dict['VERSION']])
 
 dependencies = ['mako', 'numpy']
 
