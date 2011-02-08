@@ -24,25 +24,25 @@ and variety of Python's templating engines makes code generation simpler. I used
 `mako <http://pypi.python.org/pypi/Mako>`_ templating engine, simply because of
 the personal preference. The code can be easily changed to use any other engine.
 
-**Warning**: "Cuda" part of ``pyfft`` requires ``PyCuda 0.94`` or newer;
-"CL" part requires ``PyOpenCL 0.92`` or newer.
+.. warning:: "Cuda" part of ``pyfft`` requires ``PyCuda`` 0.94 or newer;
+             "CL" part requires ``PyOpenCL`` 0.92 or newer.
 
 Quick Start
 ===========
 
-This overview contains basic usage examples for both backends, CUDA and OpenCL.
-CUDA part goes first and contains a bit more detailed comments,
+This overview contains basic usage examples for both backends, Cuda and OpenCL.
+Cuda part goes first and contains a bit more detailed comments,
 but they can be easily projected on OpenCL part, since the code is very similar.
 
-CUDA version
-~~~~~~~~~~~~
+... with PyCuda
+~~~~~~~~~~~~~~~
 
 First, import ``numpy`` and plan creation interface from ``pyfft``.
 
  >>> from pyfft.cuda import Plan
  >>> import numpy
 
-Import CUDA driver API root and context creation function.
+Import Cuda driver API root and context creation function.
 In addition, we will need ``gpuarray`` module to pass data to and from GPU.
 
  >>> import pycuda.driver as cuda
@@ -51,8 +51,8 @@ In addition, we will need ``gpuarray`` module to pass data to and from GPU.
 
 Since we are using Cuda, it must be initialized before any Cuda functions are called
 (by default, the plan will use existing context, but there are other possibilities;
-see reference entry for `Plan` for further information).
-Stream creation is optional; if no stream is provided, ``Plan`` will create its own one.
+see reference entry for :class:`~pyfft.cuda.Plan` for further information).
+Stream creation is optional; if no stream is provided, :class:`~pyfft.cuda.Plan` will create its own one.
 
  >>> cuda.init()
  >>> context = make_default_context()
@@ -109,10 +109,10 @@ Last step is releasing Cuda context:
 
  >>> context.pop()
 
-OpenCL version
-~~~~~~~~~~~~~~
+... with PyOpenCL
+~~~~~~~~~~~~~~~~~
 
-OpenCL example consists of the same part as the CUDA one.
+OpenCL example consists of the same part as the Cuda one.
 
 Import plan class:
 
@@ -124,13 +124,13 @@ Import OpenCL API root and array class:
  >>> import pyopencl as cl
  >>> import pyopencl.array as cl_array
 
-Initialize context and queue (unlike CUDA one, OpenCL plan class requires either context or queue to be specified;
-there is no "current context" in OpenCL):
+Initialize context and queue (unlike Cuda one, OpenCL plan class requires either context
+or queue to be specified; there is no "current context" in OpenCL):
 
  >>> ctx = cl.create_some_context(interactive=False)
  >>> queue = cl.CommandQueue(ctx)
 
-Create plan (remark about caching in PyCuda applies here too):
+Create plan (remark about caching in ``PyCuda`` applies here too):
 
  >>> plan = Plan((16, 16), queue=queue)
 
@@ -171,107 +171,94 @@ Check that the result is equal to the initial data array:
  >>> print error < 1e-6
  True
 
-PyOpenCL does not require explicit context destruction, Python will do it for us.
+``PyOpenCL`` does not require explicit context destruction, Python will do it for us.
 
 Reference
 =========
 
-.. _Plan:
+.. module:: pyfft
 
-.. _cuda.Plan:
+.. module:: pyfft.cuda
+.. class:: Plan(shape, dtype=numpy.complex64, mempool=None, context=None, \
+		normalize=True, wait_for_finish=None, fast_math=True, stream=None)
+.. module:: pyfft.cl
+.. class:: Plan(shape, dtype=numpy.complex64, context=None, \
+		normalize=True, wait_for_finish=None, fast_math=True, queue=None)
 
-.. _cl.Plan:
+   Creates class, containing precalculated FFT plan.
 
-cuda.Plan, cl.Plan
-~~~~~~~~~~~~~~~~~~
+   :param shape: problem size. Can be integer or tuple with 1, 2 or 3 integer elements.
+          Each dimension must be a power of two.
 
-Creates class, containing precalculated FFT plan.
+   :param dtype: numpy data type for input/output arrays. If complex data type is given,
+          plan for interleaved arrays will be created. If scalar data type is given,
+          plan will work for data arrays with separate real and imaginary parts.
+          Depending on this parameter, :meth:`~pyfft.Plan.execute` will have different signatures;
+          see its reference entry for details.
 
-**Arguments**: ``Plan(shape, dtype=numpy.complex64, mempool=None, context=None, normalize=True,
-wait_for_finish=None, fast_math=True, stream=None, queue=None)``
+   :type dtype: numpy.complex64, numpy.float32, numpy.complex128, numpy.float64
 
-``shape``:
-  Problem size. Can be integer or tuple with 1, 2 or 3 integer elements. Each dimension must be
-  a power of two.
+   :param normalize: whether to normalize inverse FFT so that IFFT(FFT(signal)) == signal.
+          If equals to ``False``, IFFT(FFT(signal)) == signal * x * y * z.
 
-  **Warning**: 2D and 3D plans with ``y`` == 1 or ``z`` == 1 are not supported at the moment.
+   :param wait_for_finish: boolean variable, which tells whether it is necessary to wait
+          on stream after scheduling all FFT kernels.
+          Default value depends on ``context``, ``stream`` and ``queue``
+          parameters --- see `Contexts and streams usage logic`_ for details.
+          Can be overridden by ``wait_for_finish`` parameter to :meth:`~pyfft.Plan.execute`
 
-``dtype``:
-  Numpy data type for input/output arrays. If complex data type is given, plan for interleaved
-  arrays will be created. If scalar data type is given, plan will work for data arrays with
-  separate real and imaginary parts. Depending on this parameter, `execute()`_ will have
-  different signatures; see its reference entry for details.
+   :param fast_math: if ``True``, additional compiler options will be used,
+          which increase performance at the expense of accuracy.
+          For Cuda it is ``-use_fast_math``, for OpenCL --- ``-cl-mad-enable``
+          and ``-cl-fast-relaxed-math``. In addition, in case of OpenCL,
+          ``native_cos`` and ``native_sin`` are used instead of ``cos`` and ``sin``
+          (Cuda uses intrinsincs automatically when ``-use_fast_math`` is set).
 
-  *Currently supported*: ``numpy.complex64``, ``numpy.float32`` (single precision) and
-  ``numpy.complex128``, ``numpy.float64`` (double precision).
+   :param context: context, which will be used to compile kernels and execute plan.
+          See `Contexts and streams usage logic`_ entry for details.
 
-``mempool``:
-  **Cuda-specific**. If specified, method ``allocate`` of this object will be used to create
-  temporary buffers.
+   :param mempool: *Cuda-specific*. If specified, method ``allocate`` of this object
+          will be used to create temporary buffers.
 
-``normalize``:
-  Whether to normalize inverse FFT so that IFFT(FFT(signal)) == signal. If equals to ``False``,
-  IFFT(FFT(signal)) == signal * x * y * z.
+   :param stream: *Cuda-specific*. An object of class ``pycuda.driver.Stream``,
+          which will be used to schedule plan execution.
 
-``wait_for_finish``:
-  Boolean variable, which tells whether it is necessary to wait on stream after scheduling all
-  FFT kernels. Default value depends on ``context``, ``stream`` and ``queue`` parameters --- see
-  `Contexts and streams usage logic`_ for details. Can be overridden by ``wait_for_finish`` parameter
-  to `execute()`_
+   :param queue: *OpenCL-specific*. An object of class ``pyopencl.CommandQueue``,
+          which will be used to schedule plan execution.
 
-``fast_math``:
-  If ``True``, additional compiler options will be used, which increase performance at the expense of
-  accuracy. For **Cuda** it is ``-use_fast_math``, for **OpenCL** --- ``-cl-mad-enable`` and
-  ``-cl-fast-relaxed-math``. In addition, in case of **OpenCL**, ``native_cos`` and ``native_sin``
-  are used instead of ``cos`` and ``sin`` (**Cuda** uses intrinsincs automatically when
-  ``-use_fast_math`` is set).
+   .. warning:: 2D and 3D plans with ``y`` == 1 or ``z`` == 1 are not supported at the moment.
 
-``context``:
-  Context, which will be used to compile kernels and execute plan. See `Contexts and streams usage logic`_
-  entry for details.
+.. currentmodule:: pyfft
 
-``stream``:
-  **Cuda-specific**. An object of class ``pycuda.driver.Stream``, which will be used to schedule
-  plan execution.
+.. method:: Plan.execute(data_in, data_out=None, inverse=False, batch=1, wait_for_finish=None)
 
-``queue``:
-  **OpenCL-specific**. An object of class ``pyopencl.CommandQueue``, which will be used to schedule
-  plan execution.
+.. method:: Plan.execute(data_in_re, data_in_im, data_out_re=None, data_out_im=None, \
+		inverse=False, batch=1, wait_for_finish=None)
 
-.. _execute():
+   Execute plan for given data. Function signature depends on the data type,
+   chosen during plan creation.
 
-Plan.execute()
-~~~~~~~~~~~~~~
+   :param data_in, data_in_re, data_in_im: input array(s).
+          For Cuda plan ``PyCuda``'s ``GPUArray`` or anything
+          that can be cast to memory pointer is supported;
+          for OpenCL ``Buffer`` objects are supported.
 
-Execute plan for interleaved data arrays. Signature depends on ``dtype`` given to constructor:
+   :param data_out, data_out_re, data_out_im: output array(s).
+          If not given, the execution will be performed in-place and the results
+          will be stored in ``data_in`` or ``data_in_re``, ``data_in_im``.
 
-**Interleaved**: ``execute(data_in, data_out=None, inverse=False, batch=1, wait_for_finish=None)``
+   :param inverse: if ``True``, inverse transform will be performed.
 
-**Split**: ``executeSplit(data_in_re, data_in_im, data_out_re=None, data_out_im=None,
-inverse=False, batch=1, wait_for_finish=None)``
+   :param batch: number of data sets to process.
+          They should be located successively in ``data_in``.
 
-``data_in`` or ``data_in_re``, ``data_in_im``:
-  Input array(s). For Cuda plan PyCuda's ``GPUArray`` or anything that can be cast to memory pointer
-  is supported; for OpenCL ``Buffer`` objects are supported.
+   :param wait_for_finish: whether to wait for scheduled FFT kernels to finish.
+          Overrides setting, which was specified during plan creation.
 
-``data_out`` or ``data_out_re``, ``data_out_im``:
-  Output array(s). If not defined, the execution will be performed in-place and the results
-  will be stored in ``data_in`` or ``data_in_re``, ``data_in_im``.
-
-``inverse``:
-  If ``True``, inverse transform will be performed.
-
-``batch``:
-  Number of data sets to process. They should be located successively in ``data_in``.
-
-``wait_for_finish``:
-  Whether to wait for scheduled FFT kernels to finish. Overrides setting, which was specified
-  during plan creation.
-
-**Returns**
-  ``None`` if waiting for scheduled kernels; ``Stream`` or ``CommandQueue`` object otherwise.
-  User is expected to handle this object with care, since it can be reused during the next call
-  to `execute()`_.
+   :returns: ``None`` if waiting for scheduled kernels;
+             ``Stream`` or ``CommandQueue`` object otherwise.
+             User is expected to handle this object with care,
+             since it can be reused during the next call to :meth:`~pyfft.Plan.execute`.
 
 Contexts and streams usage logic
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -283,7 +270,7 @@ more convenient to use.
 ``wait_for_finish`` parameter can be set on three levels. First, there is a default value
 which depends on ``context`` and ``stream``/``queue`` parameters (see details below). It
 can be overridden by explicitly passing it as an argument to constructor. This setting,
-in turn, can be overridden by passing ``wait_for_finish`` keyword to `execute()`_.
+in turn, can be overridden by passing ``wait_for_finish`` keyword to :meth:`~pyfft.Plan.execute`.
 
 ----
 Cuda
@@ -292,20 +279,20 @@ Cuda
 1. ``context`` and ``stream`` are ``None``:
 
   * Current (at the moment of plan creation) context and device will be used to create kernels.
-  * ``Stream`` will be created internally and used for each `execute()`_ call.
+  * ``Stream`` will be created internally and used for each :meth:`~pyfft.Plan.execute` call.
   * Default value of ``wait_for_finish`` is ``True``.
 
 2. ``stream`` is not ``None``:
 
   * ``context`` is ignored.
   * ``stream`` is remembered and used.
-  * `execute()`_ will assume that context, corresponding to given stream is active at the time of the call.
+  * :meth:`~pyfft.Plan.execute` will assume that context, corresponding to given stream is active at the time of the call.
   * Default value of ``wait_for_finish`` is ``False``.
 
 3. ``context`` is not ``None``:
 
-  * `execute()`_ will assume that context, corresponding to given one is active at the time of the call.
-  * New ``Stream`` is created each time `execute()`_ is called and destroyed if ``wait_for_finish``
+  * :meth:`~pyfft.Plan.execute` will assume that context, corresponding to given one is active at the time of the call.
+  * New ``Stream`` is created each time :meth:`~pyfft.Plan.execute` is called and destroyed if ``wait_for_finish``
     finally evaluates to ``True``.
   * Default value of ``wait_for_finish`` is ``True``.
 
@@ -324,7 +311,7 @@ Either ``context`` or ``queue`` must be set.
 2. ``context`` is not ``None``:
 
   * ``context`` is remembered.
-  * ``CommandQueue`` will be created internally and used for each `execute()`_ call.
+  * ``CommandQueue`` will be created internally and used for each :meth:`~pyfft.Plan.execute` call.
   * Default value of ``wait_for_finish`` is ``True``.
 
 Performance
@@ -338,7 +325,7 @@ for details. Pyfft tests were executed with ``fast_math==True``.
 
 In the following tables "sp" stands for "single precision", "dp" for "double precision".
 
-Mac OS 10.6.4, Python 2.6, Cuda 3.1, PyCuda 0.94, GF9600, 32 Mb buffer:
+Mac OS 10.6.4, Python 2.6, Cuda 3.1, ``PyCuda`` 0.94, GF9600, 32 Mb buffer:
 
 +---------------------------+------------+------------+
 | Problem size / GFLOPS     | CUFFT, sp  | pyfft, sp  |
@@ -362,7 +349,7 @@ Mac OS 10.6.4, Python 2.6, Cuda 3.1, PyCuda 0.94, GF9600, 32 Mb buffer:
 | [128, 128, 128], batch 1  | 12.27      | 14.53      |
 +---------------------------+------------+------------+
 
-CentOS 5.5, Python 2.6, Cuda 3.1, PyCuda 0.94, nVidia Tesla C1060, 32 Mb buffer:
+CentOS 5.5, Python 2.6, Cuda 3.1, ``PyCuda`` 0.94, nVidia Tesla C1060, 32 Mb buffer:
 
 +---------------------------+------------+------------+------------+------------+
 | Problem size / GFLOPS     | CUFFT, sp  | pyfft, sp  | CUFFT, dp  | pyfft, dp  |
