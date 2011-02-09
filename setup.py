@@ -12,7 +12,7 @@ except ImportError:
 import os.path
 
 setup_dir = os.path.split(os.path.abspath(__file__))[0]
-DOCUMENTATION = open(os.path.join(setup_dir, 'doc', 'source', 'index.rst')).read()
+DOCUMENTATION = open(os.path.join(setup_dir, 'README.rst')).read()
 
 pyfft_path = os.path.join(setup_dir, 'pyfft', '__init__.py')
 globals_dict = {}
