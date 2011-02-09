@@ -19,7 +19,7 @@ and variety of Python's templating engines makes code generation simpler. I used
 `mako <http://pypi.python.org/pypi/Mako>`_ templating engine, simply because of
 the personal preference. The code can be easily changed to use any other engine.
 
-.. warning:: "Cuda" part of ``pyfft`` requires ``PyCuda`` 0.94 or newer;
+.. note:: "Cuda" part of ``pyfft`` requires ``PyCuda`` 0.94 or newer;
              "CL" part requires ``PyOpenCL`` 0.92 or newer.
 
 Quick Start
