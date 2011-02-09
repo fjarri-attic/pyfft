@@ -1,5 +1,6 @@
 include *.rst
 include *.py
+include *.cfg
 include pyfft/*.mako
 include test/*.py
 include cuda/*.cu
