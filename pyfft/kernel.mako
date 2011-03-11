@@ -39,18 +39,6 @@
 		%endif
 	%endif
 
-	## These operators are supported by OpenCL
-	%if cuda:
-		inline ${complex} operator+(${complex} a, ${complex} b) { return complex_ctr(a.x + b.x, a.y + b.y); }
-		inline ${complex} operator-(${complex} a, ${complex} b) { return complex_ctr(a.x - b.x, a.y - b.y); }
-	%endif
-
-	#define complex_mul(a, b) complex_ctr(mad(-(a).y, (b).y, (a).x * (b).x), mad((a).y, (b).x, (a).x * (b).y))
-	#define complex_div_scalar(a, b) complex_ctr((a).x / (b), (a).y / (b))
-	#define conj(a) complex_ctr((a).x, -(a).y)
-	#define conj_transp(a) complex_ctr(-(a).y, (a).x)
-	#define conj_transp_and_mul(a, b) complex_ctr(-(a).y * (b), (a).x * (b))
-
 	%if cuda:
 		#define DEVICE __device__
 		#define GLOBAL
@@ -62,6 +50,18 @@
 		#define KERNEL __kernel
 		#define SYNC barrier(CLK_LOCAL_MEM_FENCE)
 	%endif
+
+	## These operators are supported by OpenCL
+	%if cuda:
+		inline DEVICE ${complex} operator+(${complex} a, ${complex} b) { return complex_ctr(a.x + b.x, a.y + b.y); }
+		inline DEVICE ${complex} operator-(${complex} a, ${complex} b) { return complex_ctr(a.x - b.x, a.y - b.y); }
+	%endif
+
+	#define complex_mul(a, b) complex_ctr(mad(-(a).y, (b).y, (a).x * (b).x), mad((a).y, (b).x, (a).x * (b).y))
+	#define complex_div_scalar(a, b) complex_ctr((a).x / (b), (a).y / (b))
+	#define conj(a) complex_ctr((a).x, -(a).y)
+	#define conj_transp(a) complex_ctr(-(a).y, (a).x)
+	#define conj_transp_and_mul(a, b) complex_ctr(-(a).y * (b), (a).x * (b))
 
 	DEVICE void swap(${complex} *a, ${complex} *b)
 	{
