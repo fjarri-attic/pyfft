@@ -28,7 +28,6 @@
 		#define mul24(x, y) __mul24(x, y)
 	%endif
 
-	## TODO: add double-precision support
 	%if cuda:
 		#define complex_exp(res, ang) ${"sincos" + ("f" if scalar == "float" else "")}(ang, &((res).y), &((res).x))
 	%else:
