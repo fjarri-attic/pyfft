@@ -3,6 +3,8 @@
 
 #include <assert.h>
 #include <cutil_inline.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 // Wrapper for cuda memory buffer (just some convenience functions)
 template<class T>
@@ -41,6 +43,22 @@ public:
 		assert(buffer == NULL);
 		length = len;
 		cutilSafeCall(cudaMalloc((void**)&buffer, length * sizeof(T)));
+
+		// Fill array with random numbers
+		// To avoid NaNs, which can slow down kernel execution in tests
+		// (now I can use newly created CudaBuffers in performance tests
+		// without explicitly filling them with data)
+		T* contents = new T[length];
+		for(int i = 0; i < length; i++)
+		{
+			float rnd_num = (float)rand() / RAND_MAX;
+			contents[i].x = rnd_num;
+			contents[i].y = rnd_num;
+		}
+
+		copyFrom(contents);
+
+		delete[] contents;
 	}
 
 	void release()
