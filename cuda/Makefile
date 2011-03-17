@@ -1,7 +1,7 @@
 BINDIR = ./
 EXECUTABLE	:= test
 
-CUFILES := test.cu batchfft.cu
+CUFILES := test.cu
 USECUFFT := 1
 
 ROOTDIR := /Developer/GPU\ Computing/C/common
