@@ -87,7 +87,9 @@ int main(int argc, char** argv)
 	runTest(1024, 1024, 1);
 
 	// 3D
+	runTest(8, 8, 64);
 	runTest(16, 16, 16);
+	runTest(16, 16, 128);
 	runTest(32, 32, 128);
 	runTest(128, 128, 128);
 }
