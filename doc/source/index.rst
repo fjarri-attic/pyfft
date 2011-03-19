@@ -316,15 +316,13 @@ Either ``context`` or ``queue`` must be set.
 Performance
 ===========
 
-Here is the comparison to pure Cuda program using CUFFT. Since CUFFT supports batched
-FFT only for 1D, tests for other dimensions were performed using 1D FFT and matrix
-transposes (that's why CUFFT performance is so non-uniform, but it
-is the only way of getting FFT for large batches). See ``cuda`` folder in distribution
-for details. Pyfft tests were executed with ``fast_math==True``.
+Here is the comparison to pure Cuda program using CUFFT. For Cuda test program see
+``cuda`` folder in the distribution. Pyfft tests were executed with ``fast_math=True``
+(default option for performance test script).
 
 In the following tables "sp" stands for "single precision", "dp" for "double precision".
 
-Mac OS 10.6.6, Python 2.6, Cuda 3.2, ``PyCuda`` 2011.1, GF9600, 32 Mb buffer:
+Mac OS 10.6.6, Python 2.6, Cuda 3.2, PyCuda 2011.1, nVidia GeForce 9600M, 32 Mb buffer:
 
 +---------------------------+------------+------------+
 | Problem size / GFLOPS     | CUFFT, sp  | pyfft, sp  |
@@ -348,7 +346,7 @@ Mac OS 10.6.6, Python 2.6, Cuda 3.2, ``PyCuda`` 2011.1, GF9600, 32 Mb buffer:
 | [128, 128, 128], batch 1  | 12.7       | 14.5       |
 +---------------------------+------------+------------+
 
-Ubuntu 10.04.2, Python 2.6.5, Cuda 3.2, ``PyCuda`` 2011.1, nVidia Tesla C2050, 32 Mb buffer:
+Ubuntu 10.04.2, Python 2.6.5, Cuda 3.2, PyCuda 2011.1, nVidia Tesla C2050, 32 Mb buffer:
 
 +---------------------------+------------+------------+------------+------------+
 | Problem size / GFLOPS     | CUFFT, sp  | pyfft, sp  | CUFFT, dp  | pyfft, dp  |
