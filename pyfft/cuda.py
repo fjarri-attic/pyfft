@@ -25,7 +25,7 @@ class Function:
 		self._func_ref = self._module.get_function(name)
 		arg_list = "PPPPi" if split else "PPi"
 		self._block_size = block_size
-		self._func_ref.prepare(arg_list, block=(block_size, 1, 1))
+		self._func_ref.prepare(arg_list)
 		self._split = split
 
 	def prepare(self, grid, batch_size):
@@ -39,9 +39,11 @@ class Function:
 				args[i] = arg.gpudata
 
 		if self._split:
-			self._func_ref.prepared_async_call(self._grid, stream, args[0], args[1], args[2], args[3], self._batch_size)
+			self._func_ref.prepared_async_call(self._grid, (self._block_size, 1, 1)
+				stream, args[0], args[1], args[2], args[3], self._batch_size)
 		else:
-			self._func_ref.prepared_async_call(self._grid, stream, args[0], args[1], self._batch_size)
+			self._func_ref.prepared_async_call(self._grid, (self._block_size, 1, 1),
+				stream, args[0], args[1], self._batch_size)
 
 	def isExecutable(self):
 		return self._func_ref.num_regs * self._block_size <= self._context.max_registers
