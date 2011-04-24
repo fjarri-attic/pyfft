@@ -102,14 +102,14 @@ class CLContext:
 		import pyopencl as cl
 		gpu_buf = self.allocate(data.shape, data.dtype)
 		queue = self._createQueue()
-		cl.enqueue_write_buffer(queue, gpu_buf, data).wait()
+		cl.enqueue_copy(queue, gpu_buf, data, is_blocking=True)
 		return gpu_buf
 
 	def fromGpu(self, gpu_buf, target_shape, target_dtype):
 		import pyopencl as cl
 		data = numpy.empty(target_shape, target_dtype)
 		queue = self._createQueue()
-		cl.enqueue_read_buffer(queue, gpu_buf, data).wait()
+		cl.enqueue_copy(queue, data, gpu_buf, is_blocking=True)
 		return data
 
 	def getPlan(self, *args, **kwds):
