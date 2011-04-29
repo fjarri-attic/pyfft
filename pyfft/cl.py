@@ -3,6 +3,7 @@ OpenCL-specific part of the module.
 """
 
 import pyopencl as cl
+import warnings
 
 if cl.VERSION < (0, 92):
 	raise ImportError("PyOpenCL 0.92 or newer is required")
@@ -49,12 +50,23 @@ class Function:
 class Module:
 	"""Wrapper for OpenCL module"""
 
-	def __init__(self, context, kernel_string, fast_math):
+	def __init__(self, context, kernel_string, fast_math, compiler_output=False):
+		# OpenCL compiler can be a bit noisy sometimes
+		# Kernel code does not normally produce any warnings, so I can safely
+		# disable any compiler output by default
+		if not compiler_output:
+			obj = warnings.catch_warnings()
+			warnings.simplefilter("ignore")
+
 		# Casting source code to ASCII explicitly
 		# New versions of Mako produce Unicode output by default,
 		# and it makes OpenCL compiler unhappy
 		self._program = cl.Program(context.context, str(kernel_string)).build(
 			options=("-cl-mad-enable -cl-fast-relaxed-math" if fast_math else ""))
+
+		if not compiler_output:
+			del obj
+
 		self._context = context
 
 	def getFunction(self, name, split, block_size):
@@ -89,8 +101,8 @@ class Context:
 	def allocate(self, size):
 		return cl.Buffer(self.context, cl.mem_flags.READ_WRITE, size=size)
 
-	def compile(self, kernel_string, fast_math):
-		return Module(self, kernel_string, fast_math)
+	def compile(self, kernel_string, fast_math, compiler_output=False):
+		return Module(self, kernel_string, fast_math, compiler_output=compiler_output)
 
 	def createQueue(self):
 		pass
