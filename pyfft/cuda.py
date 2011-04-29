@@ -39,7 +39,7 @@ class Function:
 				args[i] = arg.gpudata
 
 		if self._split:
-			self._func_ref.prepared_async_call(self._grid, (self._block_size, 1, 1)
+			self._func_ref.prepared_async_call(self._grid, (self._block_size, 1, 1),
 				stream, args[0], args[1], args[2], args[3], self._batch_size)
 		else:
 			self._func_ref.prepared_async_call(self._grid, (self._block_size, 1, 1),
