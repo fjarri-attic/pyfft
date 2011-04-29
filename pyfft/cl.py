@@ -50,7 +50,10 @@ class Module:
 	"""Wrapper for OpenCL module"""
 
 	def __init__(self, context, kernel_string, fast_math):
-		self._program = cl.Program(context.context, kernel_string).build(
+		# Casting source code to ASCII explicitly
+		# New versions of Mako produce Unicode output by default,
+		# and it makes OpenCL compiler unhappy
+		self._program = cl.Program(context.context, str(kernel_string)).build(
 			options=("-cl-mad-enable -cl-fast-relaxed-math" if fast_math else ""))
 		self._context = context
 
