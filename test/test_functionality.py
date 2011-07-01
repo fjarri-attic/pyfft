@@ -58,7 +58,16 @@ class TestPlan(unittest.TestCase):
 			plan = self.context.getPlan(data.shape, normalize=normalize,
 				dtype=dtype, context=self.context.context)
 			a_gpu = self.context.toGpu(data)
+
+			# Test forward transform
+			# Should be the same as numpy regardless of the 'normalize' value
 			plan.execute(a_gpu)
+			numpy_res = numpy.fft.fft(data)
+			res = self.context.fromGpu(a_gpu, data.shape, data.dtype)
+			error = numpy.sum(numpy.abs(numpy_res - res)) / data.size
+			self.assert_(error < 1e-6)
+
+			# Test backward transform
 			plan.execute(a_gpu, inverse=True)
 			res = self.context.fromGpu(a_gpu, data.shape, data.dtype)
 
