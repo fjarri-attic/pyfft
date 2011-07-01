@@ -20,14 +20,30 @@ class _FFTKernel:
 		self._kernel_name = "fft"
 		self._previous_batch = None
 
-	def addNormalization(self):
-		kernel_string = self.generate(self._max_block_size, normalize=True)
+	def getScaleCoeffFunc(self, normalize, scale):
+		"""Get function which will return the scaling coefficient inside kernel renderer"""
+
+		def func(dir):
+			"""Scaling function to pass to kernel renderer"""
+
+			# Returning 1 in case compiler does not optimize "/1.0" to "/1".
+			# Most probably, it does.
+			if dir == -1:
+				return 1 if scale == 1.0 else 1.0 / scale
+			else:
+				coeff = (self._params.size if normalize else 1.0) * scale
+				return 1 if coeff == 1.0 else coeff
+
+		return func
+
+	def recompileWith(self, normalize, scale):
+		kernel_string = self.generate(self._max_block_size, normalize=normalize, scale=scale)
 
 		# using the last successful max_block_size, because normalization clearly
 		# will not decrease the number of used registers
-		self.compile(self._max_block_size, normalize=True)
+		self.compile(self._max_block_size, normalize=normalize, scale=scale)
 
-	def compile(self, max_block_size, normalize=False):
+	def compile(self, max_block_size, normalize=False, scale=1.0):
 		self._module = None
 		self._func_ref = None
 		max_block_size = max_block_size * 2
@@ -41,7 +57,7 @@ class _FFTKernel:
 			# given parameters do not allow us to create code;
 			# other errors are not expected and passed further
 			try:
-				kernel_string = self.generate(max_block_size, normalize)
+				kernel_string = self.generate(max_block_size, normalize, scale)
 			except AssertionError:
 				continue
 
@@ -112,7 +128,7 @@ class LocalFFTKernel(_FFTKernel):
 		_FFTKernel.__init__(self, fft_params)
 		self._n = n
 
-	def generate(self, max_block_size, normalize):
+	def generate(self, max_block_size, normalize, scale):
 		n = self._n
 		assert n <= max_block_size * self._params.max_radix, "Signal length is too big for shared mem fft"
 
@@ -144,9 +160,9 @@ class LocalFFTKernel(_FFTKernel):
 			self._params.scalar, self._params.complex, self._params.split, self._kernel_name,
 			n, radix_array, smem_size, threads_per_xform, xforms_per_block,
 			self._params.min_mem_coalesce_width, self._params.num_smem_banks,
-			self._params.size if normalize else 1,
 			log2=log2, getPadding=getPadding, cuda=self._context.isCuda(),
-			fast_math=self._params.fast_math)
+			fast_math=self._params.fast_math,
+			scale_coeff=self.getScaleCoeffFunc(normalize, scale))
 
 
 class GlobalFFTKernel(_FFTKernel):
@@ -162,7 +178,7 @@ class GlobalFFTKernel(_FFTKernel):
 		self._starting_batch_size = batch_size
 		self._pass_num = pass_num
 
-	def generate(self, max_block_size, normalize):
+	def generate(self, max_block_size, normalize, scale):
 
 		batch_size = self._starting_batch_size
 
@@ -231,9 +247,9 @@ class GlobalFFTKernel(_FFTKernel):
 			self._n, self._curr_n, self._pass_num,
 			smem_size, batch_size,
 			self._horiz_bs, self._vert_bs, vertical, max_block_size,
-			self._params.size if normalize else 1,
 			log2=log2, getGlobalRadixInfo=getGlobalRadixInfo, cuda=self._context.isCuda(),
-			fast_math=self._params.fast_math)
+			fast_math=self._params.fast_math,
+			scale_coeff=self.getScaleCoeffFunc(normalize, scale))
 
 	def __get_batch_size(self):
 		return self._batch_size

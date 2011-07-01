@@ -268,14 +268,12 @@
 	%endif
 </%def>
 
-<%def name="insertGlobalStore(a_index, g_index, split, normalization_coeff, dir)">
-	<% coeff = normalization_coeff if dir == 1 else 1 %>
-
+<%def name="insertGlobalStore(a_index, g_index, split, dir)">
 	%if split:
-		out_real[${g_index}] = a[${a_index}].x / ${coeff};
-		out_imag[${g_index}] = a[${a_index}].y / ${coeff};
+		out_real[${g_index}] = a[${a_index}].x / ${scale_coeff(dir)};
+		out_imag[${g_index}] = a[${a_index}].y / ${scale_coeff(dir)};
 	%else:
-		out[${g_index}] = complex_div_scalar(a[${a_index}], ${coeff});
+		out[${g_index}] = complex_div_scalar(a[${a_index}], ${scale_coeff(dir)});
 	%endif
 </%def>
 
@@ -433,7 +431,7 @@
 </%def>
 
 <%def name="insertGlobalStoresAndTranspose(n, max_radix, radix, threads_per_xform, xforms_per_block, \
-	   mem_coalesce_width, split, normalization_coeff, dir)">
+	   mem_coalesce_width, split, dir)">
 
 	<%
 		block_size = threads_per_xform * xforms_per_block
@@ -452,7 +450,7 @@
 				k = i / num_iter
 				ind = j * radix + k
 			%>
-			${insertGlobalStore(ind, i * threads_per_xform, split, normalization_coeff, dir)}
+			${insertGlobalStore(ind, i * threads_per_xform, split, dir)}
 		%endfor
 
 		%if xforms_per_block > 1:
@@ -497,7 +495,7 @@
 			%for j in range(num_inner_iter):
 				${insertGlobalStore(i * num_inner_iter + j, \
 					j * mem_coalesce_width + i * (block_size / mem_coalesce_width) * n, \
-					split, normalization_coeff, dir)}
+					split, dir)}
 			%endfor
 			}
 			%if i != num_outer_iter - 1:
@@ -511,7 +509,7 @@
 			%for j in range(num_inner_iter):
 				${insertGlobalStore(i * num_inner_iter + j, \
 					j * mem_coalesce_width + i * (block_size / mem_coalesce_width) * n, \
-					split, normalization_coeff, dir)}
+					split, dir)}
 			%endfor
 		%endfor
 		}
@@ -543,7 +541,7 @@
 		%for i in range(max_radix):
 			if(jj < s)
 			{
-				${insertGlobalStore(i, i * block_size, split, normalization_coeff, dir)}
+				${insertGlobalStore(i, i * block_size, split, dir)}
 			}
 			%if i != max_radix - 1:
 				jj += ${block_size / n};
@@ -553,7 +551,7 @@
 		else
 		{
 			%for i in range(max_radix):
-				${insertGlobalStore(i, i * block_size, split, normalization_coeff, dir)}
+				${insertGlobalStore(i, i * block_size, split, dir)}
 			%endfor
 		}
 	%endif
@@ -727,7 +725,7 @@
 </%def>
 
 <%def name="localKernel(scalar, complex, split, kernel_name, n, radix_arr, shared_mem, \
-	threads_per_xform, xforms_per_block, min_mem_coalesce_width, num_smem_banks, normalization_coeff)">
+	threads_per_xform, xforms_per_block, min_mem_coalesce_width, num_smem_banks)">
 
 	<%
 		max_radix = radix_arr[0]
@@ -796,7 +794,7 @@ ${insertKernelHeader(kernel_name, split, scalar, complex, dir)}
 	%endfor
 
 	${insertGlobalStoresAndTranspose(n, max_radix, radix_arr[num_radix - 1], threads_per_xform,
-		xforms_per_block, min_mem_coalesce_width, split, normalization_coeff, dir)}
+		xforms_per_block, min_mem_coalesce_width, split, dir)}
 }
 %endfor
 
@@ -807,7 +805,7 @@ ${insertKernelHeader(kernel_name, split, scalar, complex, dir)}
 </%def>
 
 <%def name="globalKernel(scalar, complex, split, kernel_name, n, curr_n, pass_num, shared_mem, \
-	batch_size, horiz_bs, vert_bs, vertical, max_block_size, normalization_coeff)">
+	batch_size, horiz_bs, vert_bs, vertical, max_block_size)">
 
 ${insertBaseKernels(scalar, complex)}
 
@@ -856,7 +854,6 @@ ${insertKernelHeader(kernel_name, split, scalar, complex, dir)}
 
 	<%
 		log2_blocks_per_xform = log2(blocks_per_xform)
-		coeff = normalization_coeff if dir == 1 else 1
 	%>
 
 	%if vertical:
@@ -1014,13 +1011,13 @@ ${insertKernelHeader(kernel_name, split, scalar, complex, dir)}
 
 			%for comp, part in (('x', 'real'), ('y', 'imag')):
 				%for k in range(radix1):
-					out_${part}[${k * block_size}] = a[${k}].${comp} / ${coeff};
+					out_${part}[${k * block_size}] = a[${k}].${comp} / ${scale_coeff(dir)};
 				%endfor
 			%endfor
 		%else:
 			out += index_out;
 			%for k in range(radix1):
-				out[${k * block_size}] = complex_div_scalar(a[${k}], ${coeff});
+				out[${k * block_size}] = complex_div_scalar(a[${k}], ${scale_coeff(dir)});
 			%endfor
 		%endif
 	%else:
@@ -1032,14 +1029,14 @@ ${insertKernelHeader(kernel_name, split, scalar, complex, dir)}
 			%for comp, part in (('x', 'real'), ('y', 'imag')):
 				%for k in range(radix1):
 					out_${part}[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] =
-						a[${k}].${comp} / ${coeff};
+						a[${k}].${comp} / ${scale_coeff(dir)};
 				%endfor
 			%endfor
 		%else:
 			out += index_out;
 			%for k in range(radix1):
 				out[${((k % radix2) * radix1 + (k / radix2)) * stride_out}] =
-					complex_div_scalar(a[${k}], ${coeff});
+					complex_div_scalar(a[${k}], ${scale_coeff(dir)});
 			%endfor
 		%endif
 	%endif

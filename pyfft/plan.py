@@ -68,7 +68,7 @@ class FFTPlan:
 	Class for FFT plan preparation and execution.
 	"""
 	def __init__(self, context, shape, dtype=numpy.complex64, normalize=True,
-		wait_for_finish=None, fast_math=True):
+		wait_for_finish=None, fast_math=True, scale=1.0):
 
 		if isinstance(shape, int):
 			self._dim = _FFT_1D
@@ -91,6 +91,7 @@ class FFTPlan:
 		self._context = context
 		self._params = _FFTParams(shape, dtype, context, fast_math)
 		self._normalize = normalize
+		self._scale = scale
 		self._wait_for_finish = wait_for_finish
 
 		self._tempmemobj = None
@@ -123,8 +124,8 @@ class FFTPlan:
 
 		# Since we're changing the last kernel, it won't affect
 		# 'chaining' of batch sizes in global kernels
-		if self._normalize:
-			self._kernels[-1].addNormalization()
+		if self._normalize or self._scale != 1.0:
+			self._kernels[-1].recompileWith(self._normalize, self._scale)
 
 		self._temp_buffer_needed = False
 		for kernel in self._kernels:
