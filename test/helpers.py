@@ -124,7 +124,8 @@ class CLContext:
 		return self._stop - self._start
 
 	def supportsDouble(self):
-		return "cl_khr_fp64" in self.context.devices[0].extensions
+		extensions = self.context.devices[0].extensions
+		return "cl_khr_fp64" in extensions or "cl_amd_fp64" in extensions
 
 	def __str__(self):
 		return "cl"
