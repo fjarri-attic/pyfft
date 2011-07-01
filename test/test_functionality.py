@@ -67,6 +67,29 @@ class TestPlan(unittest.TestCase):
 			error = numpy.sum(numpy.abs(data * coeff - res)) / data.size
 			self.assert_(error < 1e-6)
 
+	def testScale(self):
+		dtype = self.complex
+		data = numpy.ones(16, dtype=dtype)
+
+		for scale in [1.0, 10.0]:
+			plan = self.context.getPlan(data.shape, scale=scale,
+				dtype=dtype, context=self.context.context, normalize=True)
+			a_gpu = self.context.toGpu(data)
+
+			# Forward - scaling must be applied
+			# (result must be 'scale' times bigger than numpy result)
+			plan.execute(a_gpu)
+			numpy_res = numpy.fft.fft(data)
+			res = self.context.fromGpu(a_gpu, data.shape, data.dtype)
+			error = numpy.sum(numpy.abs(numpy_res * scale - res)) / data.size
+			self.assert_(error < 1e-6)
+
+			# Backward - inverse scaling must be applied, returning things to normal
+			plan.execute(a_gpu, inverse=True)
+			res = self.context.fromGpu(a_gpu, data.shape, data.dtype)
+			error = numpy.sum(numpy.abs(data - res)) / data.size
+			self.assert_(error < 1e-6)
+
 	def testFastMath(self):
 		dtype = self.complex
 		data = numpy.ones(8192, dtype=dtype)

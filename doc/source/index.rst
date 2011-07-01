@@ -182,7 +182,7 @@ Reference
 		normalize=True, wait_for_finish=None, fast_math=True, stream=None)
 .. module:: pyfft.cl
 .. class:: Plan(shape, dtype=numpy.complex64, context=None, \
-		normalize=True, wait_for_finish=None, fast_math=True, queue=None)
+		normalize=True, scale=1.0, wait_for_finish=None, fast_math=True, queue=None)
 
    Creates class, containing precalculated FFT plan.
 
@@ -199,6 +199,9 @@ Reference
 
    :param normalize: whether to normalize inverse FFT so that IFFT(FFT(signal)) == signal.
           If equals to ``False``, IFFT(FFT(signal)) == signal * x * y * z.
+
+   :param scale: if set, the result of forward transform will be multiplied by ``scale``,
+          and the result of backward transform will be divided by ``scale``.
 
    :param wait_for_finish: boolean variable, which tells whether it is necessary to wait
           on stream after scheduling all FFT kernels.
