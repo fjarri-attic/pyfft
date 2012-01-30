@@ -711,9 +711,7 @@
 		size_t smem_store_index, smem_load_index;
 	%endif
 
-	## need to fill a[] with zeros, because otherwise nvcc crashes
-	## (it considers a[] not initialized)
-	${complex} a[${temp_array_size}] = {${', '.join(['0'] * temp_array_size * 2)}};
+	${complex} a[${temp_array_size}];
 
 	%if cuda:
 		int thread_id = threadIdx.x;
