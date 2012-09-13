@@ -10,6 +10,7 @@ except ImportError:
     from distutils.core import setup
 
 import os.path
+import logging
 
 setup_dir = os.path.split(os.path.abspath(__file__))[0]
 DOCUMENTATION = open(os.path.join(setup_dir, 'README.rst')).read()
@@ -20,6 +21,12 @@ execfile(pyfft_path, globals_dict)
 VERSION = '.'.join([str(x) for x in globals_dict['VERSION']])
 
 dependencies = ['mako', 'numpy']
+
+logging.warning("*" * 80 + "\n\n" +
+	"PyFFT is deprecated and will not be updated any more.\n" +
+	"Its functionality is being moved to Tigger (http://tigger.publicfields.net).\n\n" +
+	"*" * 80)
+
 
 setup(
 	name='pyfft',
