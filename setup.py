@@ -24,7 +24,7 @@ dependencies = ['mako', 'numpy']
 
 logging.warning("*" * 80 + "\n\n" +
 	"PyFFT is deprecated and will not be updated any more.\n" +
-	"Its functionality is being moved to Tigger (http://tigger.publicfields.net).\n\n" +
+	"Its functionality is being moved to Reikna (http://reikna.publicfields.net).\n\n" +
 	"*" * 80)
 
 
