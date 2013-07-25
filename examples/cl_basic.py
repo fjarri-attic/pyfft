@@ -12,7 +12,7 @@ plan = Plan((16, 16), queue=queue)
 
 # prepare data
 data = numpy.ones((16, 16), dtype=numpy.complex64)
-gpu_data = cl_array.to_device(ctx, queue, data)
+gpu_data = cl_array.to_device(queue, data)
 print gpu_data
 
 # forward transform
