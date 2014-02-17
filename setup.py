@@ -24,7 +24,7 @@ dependencies = ['mako', 'numpy']
 
 logging.warning("*" * 80 + "\n\n" +
 	"PyFFT is deprecated and will not be updated any more.\n" +
-	"Its functionality is being moved to Reikna (http://reikna.publicfields.net).\n\n" +
+	"Its functionality has been moved to Reikna (http://python.org/pypi/reikna).\n\n" +
 	"*" * 80)
 
 
@@ -38,7 +38,7 @@ setup(
 	version=VERSION,
 	author='Bogdan Opanchuk',
 	author_email='mantihor@gmail.com',
-	url='http://github.com/Manticore/pyfft',
+	url='http://github.com/Manticore-attic/pyfft',
 	description='FFT library for PyCuda and PyOpenCL',
 	long_description=DOCUMENTATION,
 	classifiers=[
